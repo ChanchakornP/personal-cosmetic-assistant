@@ -25,7 +25,7 @@ def extract_keywords(text: str, keywords_list: List[str]) -> int:
             count += 1
     return count
 
-def normalize_price_range(budget_range: Dict[str, Any]) -> tuple:
+def normalize_price_range(budget_range: Dict[str, Any]) -> tuple[float, float]:
     """
     Normalize budget range, handling missing min/max values
     
