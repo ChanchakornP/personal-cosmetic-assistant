@@ -1,14 +1,21 @@
 import os
 import sys
 from pathlib import Path
+from typing import Optional, Annotated
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from services.product_client import product_client
+from services.recommendation_engine import recommendation_engine
+from models.dtos import (
+    RecommendationRequest,
+    RecommendationResponse,
+    SkinProfileDTO
+)
 
 # Load environment variables
 load_dotenv()
@@ -58,6 +65,58 @@ def root():
             "quick_recommendations": "/api/recommendations/quick (GET)"
         }
     }
+
+# Recommendation endpoints
+@app.post("/api/recommendations", response_model=RecommendationResponse)
+def get_recommendations(request: RecommendationRequest = Body(...)):
+    """
+    Get personalized product recommendations based on user skin profile.
+    
+    Request body should contain:
+    - skinProfile: User's skin profile (skinType, concerns, preferredCategories, budgetRange, excludeProducts)
+    - limit: Number of recommendations to return (1-50, default: 10)
+    """
+    try:
+        response = recommendation_engine.get_recommendations(
+            skin_profile=request.skinProfile,
+            limit=request.limit or 10,
+            strategy=(request.strategy or "hybrid")
+        )
+        return response
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate recommendations: {str(e)}"
+        )
+
+@app.get("/api/recommendations/quick", response_model=RecommendationResponse)
+def get_quick_recommendations(
+    skinType: Annotated[Optional[str], Query(description="Skin type: dry, oily, combination, sensitive, normal")] = None,
+    category: Annotated[Optional[str], Query(description="Preferred product category")] = None,
+    strategy: Annotated[Optional[str], Query(description="content | popularity | hybrid")] = "hybrid",
+    limit: Annotated[int, Query(ge=1, le=50, description="Number of recommendations")] = 10
+):
+    """
+    Quick recommendation endpoint using query parameters.
+    
+    Simplified interface for basic recommendations.
+    """
+    try:
+        skin_profile = SkinProfileDTO(
+            skinType=skinType,
+            preferredCategories=[category] if category else None
+        )
+        response = recommendation_engine.get_recommendations(
+            skin_profile=skin_profile,
+            limit=limit,
+            strategy=(strategy or "hybrid")
+        )
+        return response
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate recommendations: {str(e)}"
+        )
 
 if __name__ == "__main__":
     import uvicorn
