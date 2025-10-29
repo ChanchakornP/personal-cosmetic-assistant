@@ -95,11 +95,82 @@ Expected response:
 - Product API client integration
 - Basic DTOs (Product, SkinProfile, RecommendationRequest/Response)
 - Health check endpoint
+- **Content-based recommendation algorithm** with scoring system
+- **Recommendation endpoints** (`POST /api/recommendations`, `GET /api/recommendations/quick`)
+- Recommendation engine service
 
-🚧 **In Progress / Next Steps:**
-- Recommendation algorithm implementation
-- Recommendation endpoints (`POST /api/recommendations`, `GET /api/recommendations/quick`)
-- Algorithm testing and validation
+## API Endpoints
+
+### Health Check
+- **GET** `/api/health`
+- Returns service health and Product API connectivity status
+
+### Get Recommendations (Full)
+- **POST** `/api/recommendations`
+- Request body:
+  ```json
+  {
+    "skinProfile": {
+      "skinType": "dry",
+      "concerns": ["dryness", "aging"],
+      "preferredCategories": ["Moisturizer", "Serum"],
+      "budgetRange": {
+        "min": 10,
+        "max": 50
+      },
+      "excludeProducts": [1, 2]
+    },
+    "limit": 10,
+    "strategy": "hybrid"
+  }
+  ```
+- Response:
+  ```json
+  {
+    "products": [...],
+    "count": 10,
+    "reasons": {
+      "5": ["Matches your preferred category: Moisturizer", "Suitable for dry skin"]
+    }
+  }
+  ```
+
+### Quick Recommendations
+- **GET** `/api/recommendations/quick?skinType=dry&category=Moisturizer&strategy=hybrid&limit=10`
+- Query parameters:
+  - `skinType`: dry, oily, combination, sensitive, normal
+  - `category`: Product category
+  - `strategy`: `content` | `popularity` | `hybrid` (default)
+  - `limit`: Number of recommendations (1-50, default: 10)
+
+## How It Works
+
+### Scoring Algorithm
+
+The recommendation system uses a rule-based scoring approach:
+
+1. **Base Score**: 50 points
+2. **Category Match**: +25 points (if in preferred categories)
+3. **Price in Budget**: +20 points
+4. **Price Above Budget**: -30 points
+5. **Skin Type Match**: +15 points (keyword matching in description)
+6. **Concern Match**: +10 points per matched concern
+7. **Stock Availability**: +5 if in stock, -50 if out of stock
+
+Products are ranked by score and top N recommendations are returned with explanations.
+
+### Algorithms
+
+- **content**: Rule-based content matching using keywords, categories, budget, and stock.
+- **popularity**: Heuristics favoring in-stock, affordable, frequent-category, and recent products.
+- **hybrid**: Weighted blend of content and popularity (default: 70% content, 30% popularity).
+
+### Matching Logic
+
+- **Skin Type Matching**: Searches product name and description for keywords related to the skin type (e.g., "hydrating", "moisturizing" for dry skin)
+- **Concern Matching**: Matches user concerns (acne, aging, etc.) with product descriptions
+- **Category Filtering**: Prioritizes products from preferred categories
+- **Budget Filtering**: Filters and scores products based on price range
 
 ## Development
 
