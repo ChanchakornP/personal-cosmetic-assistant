@@ -5,6 +5,7 @@ Recommendation engine service that orchestrates recommendation algorithms.
 from typing import List, Dict, Optional
 from models.dtos import ProductDTO, SkinProfileDTO, RecommendationResponse
 from services.product_client import product_client
+from services.llm_client import llm_client
 from algorithms.content_based import rank_products as content_rank, generate_recommendation_reasons
 from algorithms.popularity import rank_products as popularity_rank
 from algorithms.hybrid import rank_products as hybrid_rank
@@ -15,6 +16,8 @@ class RecommendationEngine:
     
     def __init__(self):
         self.product_client = product_client
+        # LLM client connection is established at initialization
+        self.llm_client = llm_client
     
     def get_recommendations(
         self,
