@@ -43,6 +43,10 @@ class RecommendationRequest(BaseModel):
     """Request for product recommendations"""
     skinProfile: SkinProfileDTO
     limit: Optional[int] = Field(default=10, ge=1, le=50)
+    strategy: Optional[str] = Field(
+        default="hybrid",
+        description="Recommendation strategy: content | popularity | hybrid"
+    )
 
 class RecommendationResponse(BaseModel):
     """Response containing recommended products"""
