@@ -1,0 +1,23 @@
+﻿[
+  {
+    "id": "T1001",
+    "fromAccountId": "A1001",
+    "toAccountId": "A1002",
+    "amount": 120.00,
+    "createdAt": "2024-10-26T09:15:30+08:00"
+  },
+  {
+    "id": "T1002",
+    "fromAccountId": "A1002",
+    "toAccountId": "A1003",
+    "amount": 88.50,
+    "createdAt": "2024-10-27T11:22:05+08:00"
+  },
+  {
+    "id": "T1003",
+    "fromAccountId": "A1003",
+    "toAccountId": "A1001",
+    "amount": 520.00,
+    "createdAt": "2024-09-20T20:08:00+08:00"
+  }
+]
