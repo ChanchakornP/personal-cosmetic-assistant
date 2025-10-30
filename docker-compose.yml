@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: pca-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: payment
+      POSTGRES_USER: payment_user
+      POSTGRES_PASSWORD: payment_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  payment:
+    build:
+      context: ./payment
+      dockerfile: Dockerfile
+    container_name: pca-payment
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/payment
+      SPRING_DATASOURCE_USERNAME: payment_user
+      SPRING_DATASOURCE_PASSWORD: payment_password
+    ports:
+      - "8080:8080"
+
+  product:
+    build:
+      context: ./product
+      dockerfile: Dockerfile
+    container_name: pca-product
+    ports:
+      - "8000:8000"
+
+  recomsystem:
+    build:
+      context: ./recomsystem
+      dockerfile: Dockerfile
+    container_name: pca-recomsystem
+    environment:
+      PRODUCT_API_URL: http://product:8000
+    # Optional LLM config; uncomment and set if needed
+    # OPENAI_API_KEY: your_key
+    # LLM_MODEL: gpt-4o-mini
+    # OPENAI_BASE_URL: https://api.openai.com/v1
+    depends_on:
+      - product
+    ports:
+      - "8001:8001"
+
+volumes:
+  pg-data:

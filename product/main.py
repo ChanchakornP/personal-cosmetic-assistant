@@ -1,16 +1,17 @@
 import os
-from typing import List, Optional, Annotated
-from fastapi import FastAPI, HTTPException, Query, Body
+from typing import Annotated, List, Optional
+
+import requests
+from dotenv import load_dotenv
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
-from dotenv import load_dotenv
-from supabase import create_client, Client
-import requests
+from supabase import Client, create_client
 
 # ---------- 环境与客户端 ----------
 load_dotenv()
-SUPABASE_URL = os.getenv("https://qmjcouwjzjnaqdbcyray.supabase.co")
-SUPABASE_KEY = os.getenv("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFtamNvdXdqempuYXFkYmN5cmF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2NTgzODEsImV4cCI6MjA3NzIzNDM4MX0.DSAkDRhNit9UmZMXGpylQGTPLkMY8KvDR1VdXVGg2o8")  
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError(".env setting SUPABASE_URL and SUPABASE_ANON_KEY")
 
@@ -20,11 +21,12 @@ app = FastAPI(title="Products API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # ---------- DTO（API 层使用 camelCase） ----------
 class ProductDTO(BaseModel):
@@ -39,6 +41,7 @@ class ProductDTO(BaseModel):
     updatedAt: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
+
 class ProductCreateDTO(BaseModel):
     name: str = Field(..., max_length=255)
     description: Optional[str] = None
@@ -47,6 +50,7 @@ class ProductCreateDTO(BaseModel):
     category: Optional[str] = None
     mainImageUrl: Optional[str] = None
 
+
 class ProductUpdateDTO(BaseModel):
     name: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = None
@@ -54,6 +58,7 @@ class ProductUpdateDTO(BaseModel):
     stock: Optional[int] = None
     category: Optional[str] = None
     mainImageUrl: Optional[str] = None
+
 
 # ---------- 映射：DB <-> DTO ----------
 def db_to_dto(row: dict) -> ProductDTO:
@@ -69,6 +74,7 @@ def db_to_dto(row: dict) -> ProductDTO:
         updatedAt=row.get("updated_at"),
     )
 
+
 def dto_to_db_create(dto: ProductCreateDTO) -> dict:
     return {
         "name": dto.name,
@@ -79,15 +85,23 @@ def dto_to_db_create(dto: ProductCreateDTO) -> dict:
         "main_image_url": dto.mainImageUrl,
     }
 
+
 def dto_to_db_update(dto: ProductUpdateDTO) -> dict:
     payload = {}
-    if dto.name is not None: payload["name"] = dto.name
-    if dto.description is not None: payload["description"] = dto.description
-    if dto.price is not None: payload["price"] = dto.price
-    if dto.stock is not None: payload["stock"] = dto.stock
-    if dto.category is not None: payload["category"] = dto.category
-    if dto.mainImageUrl is not None: payload["main_image_url"] = dto.mainImageUrl
+    if dto.name is not None:
+        payload["name"] = dto.name
+    if dto.description is not None:
+        payload["description"] = dto.description
+    if dto.price is not None:
+        payload["price"] = dto.price
+    if dto.stock is not None:
+        payload["stock"] = dto.stock
+    if dto.category is not None:
+        payload["category"] = dto.category
+    if dto.mainImageUrl is not None:
+        payload["main_image_url"] = dto.mainImageUrl
     return payload
+
 
 # ---------- CRUD ----------
 @app.get("/api/products", response_model=List[ProductDTO])
@@ -115,6 +129,7 @@ def list_products(
     rows = res.data or []
     return [db_to_dto(r) for r in rows]
 
+
 @app.get("/api/products/{product_id}", response_model=ProductDTO)
 def get_product(product_id: int):
     res = supabase.table("Product").select("*").eq("id", product_id).single().execute()
@@ -122,13 +137,16 @@ def get_product(product_id: int):
         raise HTTPException(status_code=404, detail="Product not found")
     return db_to_dto(res.data)
 
+
 @app.post("/api/products", response_model=ProductDTO, status_code=201)
 def create_product(payload: ProductCreateDTO):
     db_row = dto_to_db_create(payload)
-    res = supabase.table("Product").insert(db_row).select("*").single().execute()
-    if not res.data:
+    res = supabase.table("Product").insert(db_row).execute()
+    if not res.data or not isinstance(res.data, list) or not res.data:
         raise HTTPException(status_code=400, detail="Failed to create product")
-    return db_to_dto(res.data)
+    created = res.data[0]
+    return db_to_dto(created)
+
 
 @app.put("/api/products/{product_id}", response_model=ProductDTO)
 def update_product(product_id: int, payload: ProductUpdateDTO):
@@ -136,25 +154,27 @@ def update_product(product_id: int, payload: ProductUpdateDTO):
     if not db_row:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    res = (
-        supabase.table("Product")
-        .update(db_row)
-        .eq("id", product_id)
-        .select("*")
-        .single()
-        .execute()
-    )
-    if not res.data:
+    res = supabase.table("Product").update(db_row).eq("id", product_id).execute()
+    if not res.data or not isinstance(res.data, list) or not res.data:
         raise HTTPException(status_code=404, detail="Product not found or not updated")
-    return db_to_dto(res.data)
+    updated = res.data[0]
+    return db_to_dto(updated)
+
 
 @app.delete("/api/products/{product_id}", status_code=204)
 def delete_product(product_id: int):
-    exists = supabase.table("Product").select("id").eq("id", product_id).maybe_single().execute()
+    exists = (
+        supabase.table("Product")
+        .select("id")
+        .eq("id", product_id)
+        .maybe_single()
+        .execute()
+    )
     if not exists.data:
         raise HTTPException(status_code=404, detail="Product not found")
     supabase.table("Product").delete().eq("id", product_id).execute()
     return None
+
 
 # ---------- 健康检查 ----------
 @app.get("/api/health")
@@ -162,13 +182,16 @@ def health():
     res = supabase.table("Product").select("id", count="exact").execute()
     return {"ok": True, "productCount": res.count or 0}
 
+
 # ---------- 爬虫：抓取 mock 数据并入库 ----------
 class CrawlRequest(BaseModel):
     source: Optional[str] = Field(
-        default="https://fakestoreapi.com/products", description="返回商品数组的 HTTP 接口"
+        default="https://fakestoreapi.com/products",
+        description="返回商品数组的 HTTP 接口",
     )
     limit: Optional[int] = Field(default=12, ge=1, le=200)
     upsert_by_name: bool = True
+
 
 def _normalize_item(item: dict) -> dict:
     name = str(item.get("title") or item.get("name") or "Untitled").strip()
@@ -176,7 +199,9 @@ def _normalize_item(item: dict) -> dict:
     price = float(item.get("price") or 0.0)
     category = str(item.get("category") or "") or None
     image = item.get("image") or (
-        item.get("images")[0] if isinstance(item.get("images"), list) and item.get("images") else None
+        item.get("images")[0]
+        if isinstance(item.get("images"), list) and item.get("images")
+        else None
     )
     stock = int(item.get("stock") or 0)
     return {
@@ -188,10 +213,11 @@ def _normalize_item(item: dict) -> dict:
         "main_image_url": image,
     }
 
+
 @app.post("/api/products/crawl", response_model=List[ProductDTO])
 def crawl_and_store(req: CrawlRequest = Body(default=CrawlRequest())):
     try:
-        resp = requests.get(req.source, timeout=20)
+        resp = requests.get(req.source, timeout=30)
         resp.raise_for_status()
         data = resp.json()
         if isinstance(data, dict):
@@ -205,25 +231,45 @@ def crawl_and_store(req: CrawlRequest = Body(default=CrawlRequest())):
         result = []
         for row in normalized:
             if req.upsert_by_name:
-                existing = supabase.table("Product").select("id").eq("name", row["name"]).maybe_single().execute()
-                if existing.data and isinstance(existing.data, dict) and existing.data.get("id"):
+                existing = None
+                try:
+                    existing = (
+                        supabase.table("Product")
+                        .select("id")
+                        .eq("name", row["name"])
+                        .maybe_single()
+                        .execute()
+                    )
+                except Exception:
+                    existing = None
+
+                existing_id = None
+                if existing and hasattr(existing, "data") and existing.data:
+                    if isinstance(existing.data, dict):
+                        existing_id = existing.data.get("id")
+                    elif isinstance(existing.data, list) and len(existing.data) > 0:
+                        first = existing.data[0]
+                        if isinstance(first, dict):
+                            existing_id = first.get("id")
+
+                if existing_id:
                     res = (
                         supabase.table("Product")
                         .update(row)
-                        .eq("id", existing.data["id"])
-                        .select("*")
-                        .single()
+                        .eq("id", existing_id)
                         .execute()
                     )
                 else:
-                    res = supabase.table("Product").insert(row).select("*").single().execute()
+                    res = supabase.table("Product").insert(row).execute()
             else:
-                res = supabase.table("Product").insert(row).select("*").single().execute()
+                res = supabase.table("Product").insert(row).execute()
 
             if res.data:
-                result.append(db_to_dto(res.data))
+                if isinstance(res.data, list) and res.data:
+                    result.append(db_to_dto(res.data[0]))
+                elif isinstance(res.data, dict):
+                    result.append(db_to_dto(res.data))
 
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Crawl failed: {e}")
-
