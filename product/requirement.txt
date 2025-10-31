@@ -1,6 +1,15 @@
+# -------------------- Web Framework --------------------
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 python-dotenv==1.0.1
-pydantic==2.9.2
+
+# -------------------- Database & API --------------------
 supabase==2.6.0
 requests==2.32.3
+
+# -------------------- Data Processing --------------------
+pandas==2.2.2
+kaggle==1.6.17
+
+# -------------------- Type Checking (optional helper) --------------------
+pydantic==2.9.2
