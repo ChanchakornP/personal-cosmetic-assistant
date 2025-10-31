@@ -56,5 +56,23 @@ services:
     ports:
       - "8001:8001"
 
+  webpage:
+    build:
+      context: ./webpage
+      dockerfile: Dockerfile
+      args:
+        # Supabase configuration
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+        # App configuration
+        VITE_APP_TITLE: ${VITE_APP_TITLE:-Personal Cosmetic Assistant}
+    container_name: pca-webpage
+    ports:
+      - "3000:80"
+    depends_on:
+      - product
+      - recomsystem
+      - payment
+
 volumes:
   pg-data:
