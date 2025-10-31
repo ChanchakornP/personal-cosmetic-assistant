@@ -38,8 +38,8 @@ Create a `.env` file in the `recomsystem` directory:
 
 ```env
 # Supabase Configuration (REQUIRED)
-SUPABASE_URL=https://hprgkalnbpshghzwfxhq.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwcmdrYWxuYnBzaGdoendmeGhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3OTc0MDMsImV4cCI6MjA3NzM3MzQwM30.L5RA36_nIeofEAip52Xx7H1ZvTMq5M-peSaIrwCXBps
+SUPABASE_URL=your_url_here
+SUPABASE_ANON_KEY=your_anon_key_here
 
 # Gemini LLM Configuration (OPTIONAL - for AI-powered explanations)
 GEMINI_API_KEY=your_gemini_api_key_here
