@@ -11,22 +11,14 @@ WORKDIR /app
 COPY YPCA-main/package.json YPCA-main/pnpm-lock.yaml* ./
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+# Use --no-frozen-lockfile to allow lockfile refresh inside container when package.json changed
+RUN pnpm install --no-frozen-lockfile
 
-# Copy the rest of the application source
+# Copy the rest of the application source (including .env file)
 COPY YPCA-main/ ./
 
-# Build arguments for environment variables
-ARG VITE_SUPABASE_URL
-ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_APP_TITLE=Personal Cosmetic Assistant
-
-# Set environment variables for build
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
-ENV VITE_APP_TITLE=$VITE_APP_TITLE
-
 # Build the application
+# Vite will automatically read .env file from the project root
 RUN pnpm run build
 
 # Production stage
