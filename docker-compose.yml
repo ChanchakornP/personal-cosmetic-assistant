@@ -39,6 +39,8 @@ services:
       context: ./product
       dockerfile: Dockerfile
     container_name: pca-product
+    env_file:
+      - ./product/.env
     ports:
       - "8000:8000"
 
@@ -47,12 +49,8 @@ services:
       context: ./recomsystem
       dockerfile: Dockerfile
     container_name: pca-recomsystem
-    environment:
-      PRODUCT_API_URL: http://product:8000
-    # Optional LLM config; uncomment and set if needed
-    # OPENAI_API_KEY: your_key
-    # LLM_MODEL: gpt-4o-mini
-    # OPENAI_BASE_URL: https://api.openai.com/v1
+    env_file:
+      - ./recomsystem/.env
     depends_on:
       - product
     ports:
