@@ -1,6 +1,7 @@
 """
 LLM client service for AI-powered features.
 Initializes LLM connection on instantiation for better performance.
+Uses Google Gemini API (free tier available).
 """
 
 import os
@@ -11,36 +12,33 @@ from typing import Optional, List, Dict, Any
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Try to import OpenAI client (optional - graceful fallback if not configured)
+# Try to import Google Gemini client (optional - graceful fallback if not configured)
 try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
 except ImportError:
-    OPENAI_AVAILABLE = False
+    GEMINI_AVAILABLE = False
 
 # Get LLM configuration from environment
-LLM_API_KEY = os.getenv("OPENAI_API_KEY")
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
-LLM_BASE_URL = os.getenv("OPENAI_BASE_URL")  # Optional custom base URL
+LLM_API_KEY = os.getenv("GEMINI_API_KEY")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-1.5-flash")  # gemini-1.5-flash is fast and free-tier friendly
 
 class LLMClient:
     """
-    Client for interacting with LLM services (OpenAI).
+    Client for interacting with LLM services (Google Gemini).
     Connection is initialized when the client is instantiated.
     """
     
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         """
         Initialize LLM client and create connection.
         
         Args:
-            api_key: API key for LLM service (defaults to OPENAI_API_KEY env var)
-            model: Model name to use (defaults to LLM_MODEL env var or gpt-3.5-turbo)
-            base_url: Optional custom base URL for the API
+            api_key: API key for Gemini service (defaults to GEMINI_API_KEY env var)
+            model: Model name to use (defaults to LLM_MODEL env var or gemini-1.5-flash)
         """
         self.api_key = api_key or LLM_API_KEY
         self.model = model or LLM_MODEL
-        self.base_url = base_url or LLM_BASE_URL
         self.client = None
         self._initialized = False
         
@@ -49,26 +47,23 @@ class LLMClient:
             self._initialize()
         else:
             # Log warning but allow graceful degradation
-            print("Warning: LLM_API_KEY not set. LLM features will be disabled.")
+            print("Warning: GEMINI_API_KEY not set. LLM features will be disabled.")
     
     def _initialize(self):
         """
         Initialize the LLM client connection.
         Called during __init__ to establish connection early.
         """
-        if not OPENAI_AVAILABLE:
-            print("Warning: OpenAI package not installed. Install with: pip install openai")
+        if not GEMINI_AVAILABLE:
+            print("Warning: Google Generative AI package not installed. Install with: pip install google-generativeai")
             return
         
         try:
-            # Create client with connection pool
-            client_params = {
-                "api_key": self.api_key
-            }
-            if self.base_url:
-                client_params["base_url"] = self.base_url
+            # Configure Gemini API
+            genai.configure(api_key=self.api_key)
             
-            self.client = OpenAI(**client_params)
+            # Create model instance
+            self.client = genai.GenerativeModel(self.model)
             self._initialized = True
             print(f"LLM client initialized successfully (model: {self.model})")
         except Exception as e:
@@ -97,8 +92,8 @@ class LLMClient:
         Args:
             prompt: User prompt
             temperature: Sampling temperature (0.0-2.0)
-            max_tokens: Maximum tokens to generate
-            system_prompt: Optional system prompt
+            max_tokens: Maximum tokens to generate (Gemini uses max_output_tokens)
+            system_prompt: Optional system prompt (Gemini uses system_instruction)
             
         Returns:
             Generated text or None if generation fails
@@ -107,19 +102,25 @@ class LLMClient:
             return None
         
         try:
-            messages = []
+            # Build the full prompt (Gemini doesn't use separate system messages in the same way)
+            full_prompt = prompt
             if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
+                full_prompt = f"{system_prompt}\n\n{prompt}"
             
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens
+            # Configure generation parameters
+            generation_config = {
+                "temperature": temperature,
+            }
+            if max_tokens:
+                generation_config["max_output_tokens"] = max_tokens
+            
+            # Generate response
+            response = self.client.generate_content(
+                full_prompt,
+                generation_config=generation_config
             )
             
-            return response.choices[0].message.content
+            return response.text
         except Exception as e:
             print(f"Error generating text with LLM: {str(e)}")
             return None
@@ -171,10 +172,10 @@ Generate a brief, personalized explanation."""
         Returns:
             Dictionary with health status information
         """
-        if not OPENAI_AVAILABLE:
+        if not GEMINI_AVAILABLE:
             return {
                 "available": False,
-                "reason": "OpenAI package not installed",
+                "reason": "Google Generative AI package not installed",
                 "initialized": False
             }
         
@@ -194,10 +195,9 @@ Generate a brief, personalized explanation."""
         
         # Test connection with a minimal request
         try:
-            test_response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": "test"}],
-                max_tokens=5
+            test_response = self.client.generate_content(
+                "test",
+                generation_config={"max_output_tokens": 5}
             )
             return {
                 "available": True,
