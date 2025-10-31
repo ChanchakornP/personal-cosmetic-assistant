@@ -37,15 +37,22 @@ pip install -r requirement.txt
 Create a `.env` file in the `recomsystem` directory:
 
 ```env
-PRODUCT_API_URL=http://localhost:8000
+# Supabase Configuration (REQUIRED)
+SUPABASE_URL=https://hprgkalnbpshghzwfxhq.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwcmdrYWxuYnBzaGdoendmeGhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3OTc0MDMsImV4cCI6MjA3NzM3MzQwM30.L5RA36_nIeofEAip52Xx7H1ZvTMq5M-peSaIrwCXBps
+
+# Gemini LLM Configuration (OPTIONAL - for AI-powered explanations)
+GEMINI_API_KEY=your_gemini_api_key_here
+LLM_MODEL=gemini-1.5-flash
 ```
 
-Or copy from example:
-```bash
-cp .env.example .env
-```
+**Where to find your Supabase credentials:**
+1. Go to your Supabase project dashboard
+2. Navigate to Settings → API
+3. Copy the "Project URL" for `SUPABASE_URL`
+4. Copy the "anon public" key for `SUPABASE_ANON_KEY`
 
-Then edit `.env` with your Product API URL.
+**Note:** The Supabase credentials are required for the system to connect to your database.
 
 ### 3. Run the Service
 
