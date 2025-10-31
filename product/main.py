@@ -15,8 +15,6 @@ from supabase import Client, create_client
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Setting SUPABASE_URL and SUPABASE_ANON_KEY in .env")
 
@@ -24,7 +22,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI(title="Products API", version="1.0.0")
 
-# CORS
+# -------------------- CORS --------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,10 +36,18 @@ app.add_middleware(
 class ProductDTO(BaseModel):
     id: int
     name: str
+    brand: Optional[str] = None
     description: Optional[str] = None
     price: float
     stock: int
     category: Optional[str] = None
+    rank: Optional[float] = None
+    ingredients: Optional[str] = None
+    combination: Optional[bool] = None
+    dry: Optional[bool] = None
+    normal: Optional[bool] = None
+    oily: Optional[bool] = None
+    sensitive: Optional[bool] = None
     mainImageUrl: Optional[str] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
@@ -51,19 +57,35 @@ class ProductDTO(BaseModel):
 
 class ProductCreateDTO(BaseModel):
     name: str = Field(..., max_length=255)
+    brand: Optional[str] = None
     description: Optional[str] = None
     price: float
     stock: int = 0
     category: Optional[str] = None
+    rank: Optional[float] = None
+    ingredients: Optional[str] = None
+    combination: Optional[bool] = False
+    dry: Optional[bool] = False
+    normal: Optional[bool] = False
+    oily: Optional[bool] = False
+    sensitive: Optional[bool] = False
     mainImageUrl: Optional[str] = None
 
 
 class ProductUpdateDTO(BaseModel):
     name: Optional[str] = Field(None, max_length=255)
+    brand: Optional[str] = None
     description: Optional[str] = None
     price: Optional[float] = None
     stock: Optional[int] = None
     category: Optional[str] = None
+    rank: Optional[float] = None
+    ingredients: Optional[str] = None
+    combination: Optional[bool] = None
+    dry: Optional[bool] = None
+    normal: Optional[bool] = None
+    oily: Optional[bool] = None
+    sensitive: Optional[bool] = None
     mainImageUrl: Optional[str] = None
 
 
@@ -72,10 +94,18 @@ def db_to_dto(row: dict) -> ProductDTO:
     return ProductDTO(
         id=row["id"],
         name=row["name"],
+        brand=row.get("brand"),
         description=row.get("description"),
         price=float(row["price"]),
         stock=row.get("stock", 0),
         category=row.get("category"),
+        rank=row.get("rank"),
+        ingredients=row.get("ingredients"),
+        combination=row.get("combination"),
+        dry=row.get("dry"),
+        normal=row.get("normal"),
+        oily=row.get("oily"),
+        sensitive=row.get("sensitive"),
         mainImageUrl=row.get("main_image_url"),
         createdAt=row.get("created_at"),
         updatedAt=row.get("updated_at"),
@@ -85,40 +115,29 @@ def db_to_dto(row: dict) -> ProductDTO:
 def dto_to_db_create(dto: ProductCreateDTO) -> dict:
     return {
         "name": dto.name,
+        "brand": dto.brand,
         "description": dto.description,
         "price": dto.price,
         "stock": dto.stock,
         "category": dto.category,
+        "rank": dto.rank,
+        "ingredients": dto.ingredients,
+        "combination": dto.combination,
+        "dry": dto.dry,
+        "normal": dto.normal,
+        "oily": dto.oily,
+        "sensitive": dto.sensitive,
         "main_image_url": dto.mainImageUrl,
     }
 
 
 def dto_to_db_update(dto: ProductUpdateDTO) -> dict:
-    payload = {}
-    if dto.name is not None:
-        payload["name"] = dto.name
-    if dto.description is not None:
-        payload["description"] = dto.description
-    if dto.price is not None:
-        payload["price"] = dto.price
-    if dto.stock is not None:
-        payload["stock"] = dto.stock
-    if dto.category is not None:
-        payload["category"] = dto.category
-    if dto.mainImageUrl is not None:
-        payload["main_image_url"] = dto.mainImageUrl
-    if dto.name is not None:
-        payload["name"] = dto.name
-    if dto.description is not None:
-        payload["description"] = dto.description
-    if dto.price is not None:
-        payload["price"] = dto.price
-    if dto.stock is not None:
-        payload["stock"] = dto.stock
-    if dto.category is not None:
-        payload["category"] = dto.category
-    if dto.mainImageUrl is not None:
-        payload["main_image_url"] = dto.mainImageUrl
+    payload: Dict[str, Any] = {}
+    for field, value in dto.dict(exclude_none=True).items():
+        if field == "mainImageUrl":
+            payload["main_image_url"] = value
+        else:
+            payload[field] = value
     return payload
 
 
@@ -159,11 +178,10 @@ def get_product(product_id: int):
 @app.post("/api/products", response_model=ProductDTO, status_code=201)
 def create_product(payload: ProductCreateDTO):
     db_row = dto_to_db_create(payload)
-    res = supabase.table("Product").insert(db_row).execute()
-    if not res.data or not isinstance(res.data, list) or not res.data:
+    res = supabase.table("product").insert(db_row).select("*").single().execute()
+    if not res.data:
         raise HTTPException(status_code=400, detail="Failed to create product")
-    created = res.data[0]
-    return db_to_dto(created)
+    return db_to_dto(res.data)
 
 
 @app.put("/api/products/{product_id}", response_model=ProductDTO)
@@ -172,17 +190,23 @@ def update_product(product_id: int, payload: ProductUpdateDTO):
     if not db_row:
         raise HTTPException(status_code=400, detail="No fields to update")
 
-    res = supabase.table("Product").update(db_row).eq("id", product_id).execute()
-    if not res.data or not isinstance(res.data, list) or not res.data:
+    res = (
+        supabase.table("product")
+        .update(db_row)
+        .eq("id", product_id)
+        .select("*")
+        .single()
+        .execute()
+    )
+    if not res.data:
         raise HTTPException(status_code=404, detail="Product not found or not updated")
-    updated = res.data[0]
-    return db_to_dto(updated)
+    return db_to_dto(res.data)
 
 
 @app.delete("/api/products/{product_id}", status_code=204)
 def delete_product(product_id: int):
     exists = (
-        supabase.table("Product")
+        supabase.table("product")
         .select("id")
         .eq("id", product_id)
         .maybe_single()
@@ -201,9 +225,6 @@ def health():
     return {"ok": True, "productCount": res.count or 0}
 
 
-# ---------- 爬虫：抓取 mock 数据并入库 ----------
-
-
 # -------------------- Web crawling / Importing data from Kaggle --------------------
 class CrawlRequest(BaseModel):
     # If it's not Kaggle import, then get fake data from fakeapi
@@ -212,9 +233,7 @@ class CrawlRequest(BaseModel):
         description="HTTP interface that returns an array of goods; Or use kaggle:cosmetics-ingredients",
     )
     limit: Optional[int] = Field(default=12, ge=1, le=200)
-    upsert_by_name: bool = (
-        True  # Duplicate names are removed using the name attribute (name = Brand - Name)
-    )
+    upsert_by_name: bool = True  # Use unique name (Brand - Name) to upsert
 
 
 def _normalize_item(item: dict) -> dict:
@@ -241,11 +260,14 @@ def _normalize_item(item: dict) -> dict:
 
 def fetch_from_kaggle_cosmetics(limit: int) -> List[Dict[str, Any]]:
     """
-    Reading kingabzpro/cosmetics-datasets
+    Read kingabzpro/cosmetics-datasets
       - name = Brand - Name
+      - brand = Brand
       - description = Ingredients
       - category = Label
       - price = Price
+      - rank = Rank
+      - skin suitability booleans = Combination/Dry/Normal/Oily/Sensitive
       - stock = 0
       - main_image_url = None
     """
@@ -263,7 +285,19 @@ def fetch_from_kaggle_cosmetics(limit: int) -> List[Dict[str, Any]]:
     if not csv_files:
         raise ValueError("Did not find the CSV file, please try again!")
 
-    wanted_cols = {"name", "brand", "ingredients", "label", "price"}
+    wanted_cols = {
+        "name",
+        "brand",
+        "ingredients",
+        "label",
+        "price",
+        "rank",
+        "combination",
+        "dry",
+        "normal",
+        "oily",
+        "sensitive",
+    }
     results: List[Dict[str, Any]] = []
 
     def norm_cols(cols):
@@ -275,13 +309,15 @@ def fetch_from_kaggle_cosmetics(limit: int) -> List[Dict[str, Any]]:
         except Exception:
             continue
 
-        col_map = norm_cols(df.columns)
-        inv_map = {v: k for k, v in col_map.items()}
+        col_map = norm_cols(df.columns)  # original -> lower
+        inv_map = {v: k for k, v in col_map.items()}  # lower -> original
 
         present = wanted_cols.intersection(set(col_map.values()))
-        if len(present) < 3:
+        if len(present.intersection({"name", "ingredients", "price"})) < 3:
+            # Require at least the basics
             continue
 
+        # Column aliases from the file
         c_name = (
             inv_map.get("name") or inv_map.get("product") or inv_map.get("product_name")
         )
@@ -293,8 +329,14 @@ def fetch_from_kaggle_cosmetics(limit: int) -> List[Dict[str, Any]]:
             or inv_map.get("list_price")
             or inv_map.get("price_usd")
         )
+        c_rank = inv_map.get("rank")
 
-        # Need Name / Ingredients / Price
+        c_comb = inv_map.get("combination")
+        c_dry = inv_map.get("dry")
+        c_normal = inv_map.get("normal")
+        c_oily = inv_map.get("oily")
+        c_sensitive = inv_map.get("sensitive")
+
         if not (c_name and c_ing and c_price):
             continue
 
@@ -312,14 +354,39 @@ def fetch_from_kaggle_cosmetics(limit: int) -> List[Dict[str, Any]]:
                 else None
             )
 
+            # price
             try:
-                price_v = (
-                    float(row.get(c_price))
-                    if c_price and pd.notna(row.get(c_price))
-                    else 0.0
+                price_raw = (
+                    row.get(c_price) if c_price and c_price in df.columns else 0.0
                 )
+                price_v = float(price_raw) if pd.notna(price_raw) else 0.0
             except Exception:
                 price_v = 0.0
+
+            # rank
+            try:
+                rank_raw = row.get(c_rank) if c_rank and c_rank in df.columns else None
+                rank_v = (
+                    float(rank_raw)
+                    if (rank_raw is not None and pd.notna(rank_raw))
+                    else None
+                )
+            except Exception:
+                rank_v = None
+
+            # booleans: anything truthy (1/True/yes) -> True
+            def as_bool(col_name: Optional[str]) -> Optional[bool]:
+                if not col_name or col_name not in df.columns:
+                    return None
+                val = row.get(col_name)
+                if pd.isna(val):
+                    return None
+                try:
+                    if isinstance(val, str):
+                        return val.strip().lower() in {"1", "true", "yes", "y", "t"}
+                    return bool(int(val)) if str(val).isdigit() else bool(val)
+                except Exception:
+                    return bool(val)
 
             merged_name = (
                 f"{brand_v} - {name_v}"
@@ -330,10 +397,17 @@ def fetch_from_kaggle_cosmetics(limit: int) -> List[Dict[str, Any]]:
             results.append(
                 {
                     "name": merged_name,
-                    "description": ing_v or "",  # Ingredients
-                    "price": price_v,  # Price
+                    "brand": brand_v or None,
+                    "ingredients": ing_v or "",
+                    "price": price_v,
                     "stock": 0,
-                    "category": label_v,  # Label
+                    "category": label_v,
+                    "rank": rank_v,
+                    "combination": as_bool(c_comb),
+                    "dry": as_bool(c_dry),
+                    "normal": as_bool(c_normal),
+                    "oily": as_bool(c_oily),
+                    "sensitive": as_bool(c_sensitive),
                     "main_image_url": None,
                 }
             )
@@ -342,19 +416,24 @@ def fetch_from_kaggle_cosmetics(limit: int) -> List[Dict[str, Any]]:
             break
 
     if not results:
-        raise ValueError("Did not find any Name/Brand/Ingredients/Label/Price columns.")
+        raise ValueError("Did not find required Name/Ingredients/Price columns.")
 
     return results
 
 
 @app.post("/api/products/crawl", response_model=List[ProductDTO])
 def crawl_and_store(req: CrawlRequest = Body(default=CrawlRequest())):
+    """
+    Crawl products either from fakestore (default) or from Kaggle cosmetics dataset
+    via source="kaggle:cosmetics-ingredients".
+    Upserts by name when upsert_by_name=True.
+    """
     try:
-        # If the source is specified as a Kaggle feature string, proceed with the Kaggle import logic
+        # Kaggle import
         if str(req.source).startswith("kaggle:cosmetics-ingredients"):
             normalized = fetch_from_kaggle_cosmetics(req.limit or 100)
         else:
-            # The default is to use fakestore
+            # Generic HTTP JSON (default: fakestore)
             resp = requests.get(req.source, timeout=20)
             resp.raise_for_status()
             data = resp.json()
@@ -367,43 +446,56 @@ def crawl_and_store(req: CrawlRequest = Body(default=CrawlRequest())):
 
         result: List[ProductDTO] = []
         for row in normalized:
-            if req.upsert_by_name:
-                existing = (
-                    supabase.table("Product")
-                    .select("id")
-                    .eq("name", row["name"])
-                    .maybe_single()
+            existing = (
+                supabase.table("product")
+                .select("id")
+                .eq("name", row["name"])
+                .maybe_single()
+                .execute()
+            )
+
+            existing_id = None
+            if existing and existing.data and isinstance(existing.data, dict):
+                existing_id = existing.data.get("id")
+
+            # If exists -> UPDATE
+            if existing_id:
+                update_res = (
+                    supabase.table("product")
+                    .update(row)
+                    .eq("id", existing_id)
                     .execute()
                 )
-                if (
-                    existing.data
-                    and isinstance(existing.data, dict)
-                    and existing.data.get("id")
-                ):
-                    res = (
-                        supabase.table("product")
-                        .update(row)
-                        .eq("id", existing_id)
-                        .execute()
-                    )
-                else:
-                    res = (
-                        supabase.table("Product")
-                        .insert(row)
-                        .select("*")
-                        .single()
-                        .execute()
-                    )
-            else:
+
+                # Fetch updated record
                 res = (
-                    supabase.table("Product").insert(row).select("*").single().execute()
+                    supabase.table("product")
+                    .select("*")
+                    .eq("id", existing_id)
+                    .single()
+                    .execute()
                 )
 
-            if res.data:
-                if isinstance(res.data, list) and res.data:
-                    result.append(db_to_dto(res.data[0]))
-                elif isinstance(res.data, dict):
-                    result.append(db_to_dto(res.data))
+            # Else -> INSERT
+            else:
+                insert_res = supabase.table("product").insert(row).execute()
+
+                # Fetch newly created row
+                name = row["name"]
+                res = (
+                    supabase.table("product")
+                    .select("*")
+                    .eq("name", name)
+                    .single()
+                    .execute()
+                )
+
+            if not res or not res.data:
+                raise HTTPException(
+                    status_code=500, detail=f"DB write failed for: {row['name']}"
+                )
+
+            result.append(db_to_dto(res.data))
 
         return result
 
