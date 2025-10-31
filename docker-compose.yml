@@ -65,6 +65,8 @@ services:
       - product
       - recomsystem
       - payment
+    environment:
+      - VITE_RECOM_API_URL=http://recomsystem:8001
 
 volumes:
   pg-data:

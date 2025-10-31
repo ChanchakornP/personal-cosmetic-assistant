@@ -1,26 +1,18 @@
 import glob
 import os
 from typing import Annotated, Any, Dict, List, Optional
-import os
-from typing import Annotated, Any, Dict, List, Optional
 
 import pandas as pd
 import requests
-import requests
 from dotenv import load_dotenv
-from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from kaggle.api.kaggle_api_extended import KaggleApi
-from kaggle.api.kaggle_api_extended import KaggleApi
 from pydantic import BaseModel, ConfigDict, Field
-from supabase import Client, create_client
 from supabase import Client, create_client
 
 # -------------------- Environment and Supabase Client --------------------
 load_dotenv()
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -33,7 +25,6 @@ app = FastAPI(title="Products API", version="1.0.0")
 # -------------------- CORS --------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
@@ -158,9 +149,6 @@ def list_products(
     q: Annotated[
         Optional[str], Query(description="Perform a fuzzy search on name")
     ] = None,
-    q: Annotated[
-        Optional[str], Query(description="Perform a fuzzy search on name")
-    ] = None,
     category: Annotated[Optional[str], Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -263,9 +251,6 @@ def _normalize_item(item: dict) -> dict:
     price = float(item.get("price") or 0.0)
     category = str(item.get("category") or "") or None
     image = item.get("image") or (
-        item.get("images")[0]
-        if isinstance(item.get("images"), list) and item.get("images")
-        else None
         item.get("images")[0]
         if isinstance(item.get("images"), list) and item.get("images")
         else None

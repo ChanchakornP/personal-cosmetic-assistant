@@ -64,19 +64,13 @@ export function useAuth(options?: UseAuthOptions) {
     let timeoutId: NodeJS.Timeout;
     let sessionChecked = false;
 
-    // Set a timeout to prevent infinite loading
+    // Set a timeout to prevent infinite loading (do NOT sign out on timeout)
     timeoutId = setTimeout(() => {
       if (mounted && !sessionChecked) {
-        console.warn("[useAuth] Session check timeout, clearing invalid session");
-        // Clear any invalid session
-        supabase.auth.signOut().catch(() => { });
-        setUser(null);
-        setSession(null);
-        setUserProfile(null);
-        setError(null);
+        console.warn("[useAuth] Session check timeout - leaving session as-is");
         setLoading(false);
       }
-    }, 5000); // 5 second timeout
+    }, 15000); // 15 second timeout
 
     // Get initial session with better error handling
     const checkSession = async () => {
@@ -90,13 +84,9 @@ export function useAuth(options?: UseAuthOptions) {
         clearTimeout(timeoutId);
         sessionChecked = true;
 
-        // Handle auth errors by clearing invalid session
+        // Handle auth errors without force sign-out
         if (error) {
           console.warn("[useAuth] Session error:", error);
-          // If it's an invalid token error, clear the session
-          if (error.message?.includes("JWT") || error.message?.includes("token") || error.message?.includes("expired")) {
-            await supabase.auth.signOut().catch(() => { });
-          }
           setUser(null);
           setSession(null);
           setUserProfile(null);
@@ -141,11 +131,7 @@ export function useAuth(options?: UseAuthOptions) {
         clearTimeout(timeoutId);
         sessionChecked = true;
         console.error("[useAuth] Session check failed:", err);
-        // Clear session on any unexpected error
-        await supabase.auth.signOut().catch(() => { });
-        setUser(null);
-        setSession(null);
-        setUserProfile(null);
+        // Do not force sign-out on unexpected error to avoid nuking valid sessions on refresh
         setError(err instanceof Error ? err : new Error(String(err)));
         setLoading(false);
       }
@@ -175,8 +161,7 @@ export function useAuth(options?: UseAuthOptions) {
         const expiresAt = session.expires_at;
 
         if (expiresAt && expiresAt < now) {
-          console.warn("[useAuth] Session expired in state change, clearing");
-          await supabase.auth.signOut().catch(() => { });
+          console.warn("[useAuth] Session expired in state change");
           setSession(null);
           setUser(null);
           setUserProfile(null);
