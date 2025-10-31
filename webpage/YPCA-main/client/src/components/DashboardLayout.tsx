@@ -47,6 +47,7 @@ export default function DashboardLayout({
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
   const { loading, user } = useAuth();
+  const [location] = useLocation();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -56,6 +57,12 @@ export default function DashboardLayout({
     return <DashboardLayoutSkeleton />
   }
 
+  // If we're on the login page, always show the children (login/register forms)
+  if (location === "/login") {
+    return <>{children}</>;
+  }
+
+  // For other pages, show the "please sign in" screen if not authenticated
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
