@@ -6,7 +6,7 @@ Personal Cosmetic Assistant (PCA) is a React 19 single-page application that sho
 
 - **Home dashboard** summarising the product surface and quick actions.
 - **Facial analysis, routine tracker, conflict analyser, recommendations, and profile** pages that demonstrate the target UX flow.
-- **OAuth-style login flow** triggered from `/login`; the login button redirects to `VITE_OAUTH_PORTAL_URL` when configured, or stays on the local login page for demos.
+- **Username/password login flow** served from the `/login` route with redirect support back to the originally requested page.
 - **Responsive layout** built with Tailwind CSS utilities, shadcn/ui components, and Wouter for routing.
 
 ## Requirements
@@ -52,8 +52,7 @@ Create a `.env` file in the project root to customise runtime behaviour:
 VITE_API_URL=http://localhost:3000         # tRPC HTTP endpoint (proxied by Vite dev server)
 VITE_APP_TITLE=Personal Cosmetic Assistant  # App name displayed in the UI
 VITE_APP_LOGO=https://example.com/logo.png  # Logo shown on the login page and header
-VITE_OAUTH_PORTAL_URL=https://auth.example.com  # Optional OAuth portal. If omitted, /login stays local.
-VITE_APP_ID=pca-frontend                    # Optional app identifier appended to the login redirect.
+VITE_USE_MOCK_AUTH=true                     # Keep local mock login until a real backend is ready.
 ```
 
 All values are optional; when they are absent, the UI falls back to sensible defaults defined in `client/src/const.ts`.
@@ -78,9 +77,9 @@ tsconfig.json           # TypeScript configuration
 
 ## Authentication Flow
 
-- `client/src/const.ts#getLoginUrl` builds the OAuth redirect target. It warns and falls back to `/login` when `VITE_OAUTH_PORTAL_URL` is missing or invalid.
-- `client/src/pages/Login.tsx` is a simple login hand-off page. Replace its contents with your own sign-in experience if you host authentication locally.
-- `client/src/_core/hooks/useAuth.ts` encapsulates tRPC calls for `auth.me`/`auth.logout`. Without a backend, it defaults to an unauthenticated state.
+- `client/src/const.ts#getLoginUrl` constructs `/login` URLs with a `redirect` query parameter so users return to their original page after authenticating.
+- `client/src/pages/Login.tsx` renders the username/password form. When `VITE_USE_MOCK_AUTH` is `true`, it only updates local storage; otherwise it calls the tRPC `auth.login` mutation.
+- `client/src/_core/hooks/useAuth.ts` reads `VITE_USE_MOCK_AUTH` to decide between the mock local-storage flow and the real tRPC-powered `auth.me`/`auth.logout` calls.
 
 ## Styling and Components
 
@@ -94,7 +93,7 @@ To adjust the look and feel, update the CSS variables or replace shadcn componen
 
 1. Run `npm run build`.
 2. Serve the contents of `dist/public/` behind your preferred static host (Vercel, Netlify, S3, nginx, etc.).
-3. Ensure your API and OAuth endpoints are reachable from the deployed origin (`/api/trpc`, OAuth portal URL, cookies, CORS, etc.).
+3. Ensure your API endpoints are reachable from the deployed origin (`/api/trpc`, login endpoint, cookies, CORS, etc.).
 
 ## Maintenance Tips
 
