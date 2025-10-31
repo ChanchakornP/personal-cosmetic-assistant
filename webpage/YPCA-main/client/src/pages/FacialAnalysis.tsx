@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Upload, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
-import { trpc } from "@/lib/trpc";
+import { analyzeFacialImage, type FacialAnalysisResponse } from "@/services/recom";
 import { toast } from "sonner";
 
 export default function FacialAnalysis() {
@@ -16,12 +16,7 @@ export default function FacialAnalysis() {
   const [skinType, setSkinType] = useState("");
   const [concerns, setConcerns] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
-
-  const createAnalysisMutation = trpc.facialAnalysis.create.useMutation();
-  const analysisQuery = trpc.facialAnalysis.getUserAnalysis.useQuery(undefined, {
-    enabled: isAuthenticated,
-  });
+  const [result, setResult] = useState<FacialAnalysisResponse | null>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -37,22 +32,21 @@ export default function FacialAnalysis() {
   };
 
   const handleAnalyze = async () => {
-    if (!imageUrl || !skinType) {
-      toast.error("Please upload an image and select a skin type");
+    if (!imageUrl) {
+      toast.error("Please upload an image");
       return;
     }
 
     setLoading(true);
     try {
-      const response = await createAnalysisMutation.mutateAsync({
+      const response = await analyzeFacialImage({
         imageUrl,
-        skinType,
-        detectedConcerns: concerns,
+        skinType: skinType || undefined,
+        detectedConcerns: concerns.length > 0 ? concerns : undefined,
+        limit: 10,
       });
       setResult(response);
       toast.success("Analysis completed!");
-      // Refresh the analysis list
-      analysisQuery.refetch();
     } catch (error) {
       toast.error("Failed to analyze image");
       console.error(error);
@@ -172,11 +166,10 @@ export default function FacialAnalysis() {
                       <button
                         key={concern}
                         onClick={() => toggleConcern(concern)}
-                        className={`p-3 rounded-lg border-2 transition-colors ${
-                          concerns.includes(concern)
-                            ? "border-pink-500 bg-pink-50"
-                            : "border-gray-200 hover:border-pink-300"
-                        }`}
+                        className={`p-3 rounded-lg border-2 transition-colors ${concerns.includes(concern)
+                          ? "border-pink-500 bg-pink-50"
+                          : "border-gray-200 hover:border-pink-300"
+                          }`}
                       >
                         <p className="text-sm font-medium">{concern}</p>
                       </button>
@@ -187,7 +180,7 @@ export default function FacialAnalysis() {
                 {/* Analyze Button */}
                 <Button
                   onClick={handleAnalyze}
-                  disabled={loading || !imageUrl || !skinType}
+                  disabled={loading || !imageUrl}
                   className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                 >
                   {loading ? (
@@ -196,7 +189,7 @@ export default function FacialAnalysis() {
                       Analyzing...
                     </>
                   ) : (
-                    "Analyze My Skin"
+                    "Analyze My Skin with AI"
                   )}
                 </Button>
               </CardContent>
@@ -216,35 +209,60 @@ export default function FacialAnalysis() {
                     <p className="font-semibold capitalize">{result.skinType}</p>
                   </div>
                   <div>
+                    <p className="text-sm text-gray-600 mb-2">Detected Concerns</p>
+                    <div className="flex flex-wrap gap-2">
+                      {result.detectedConcerns.map((concern, idx) => (
+                        <span key={idx} className="px-3 py-1 bg-pink-100 text-pink-700 rounded-full text-xs font-medium">
+                          {concern}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
                     <p className="text-sm text-gray-600 mb-2">Analysis</p>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">
                       {result.analysisResult}
                     </p>
                   </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Previous Analyses */}
-            {analysisQuery.data && analysisQuery.data.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Previous Analyses</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {analysisQuery.data.slice(0, 5).map((analysis: any) => (
-                    <div
-                      key={analysis.id}
-                      className="p-3 bg-gray-50 rounded-lg border border-gray-200"
-                    >
-                      <p className="text-sm font-medium">
-                        {new Date(analysis.createdAt).toLocaleDateString()}
-                      </p>
-                      <p className="text-xs text-gray-600 capitalize">
-                        {analysis.skinType} skin
-                      </p>
+                  {result.recommendations && result.recommendations.products.length > 0 && (
+                    <div>
+                      <p className="text-sm text-gray-600 mb-3">Recommended Products ({result.recommendations.count})</p>
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {result.recommendations.products.map((product: any, idx: number) => (
+                          <div key={idx} className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                            <div className="flex items-start gap-3">
+                              {product.mainImageUrl && (
+                                <img
+                                  src={product.mainImageUrl}
+                                  alt={product.name}
+                                  className="w-16 h-16 object-cover rounded-md"
+                                />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm truncate">{product.name}</p>
+                                {product.description && (
+                                  <p className="text-xs text-gray-600 line-clamp-2 mt-1">{product.description}</p>
+                                )}
+                                <div className="flex items-center justify-between mt-2">
+                                  <p className="text-sm font-bold text-pink-600">${product.price?.toFixed(2)}</p>
+                                  {product.stock > 0 ? (
+                                    <span className="text-xs text-green-600">In Stock</span>
+                                  ) : (
+                                    <span className="text-xs text-red-600">Out of Stock</span>
+                                  )}
+                                </div>
+                                {result.recommendations.reasons && result.recommendations.reasons[product.id] && (
+                                  <div className="mt-2 p-2 bg-pink-50 rounded text-xs text-gray-700">
+                                    {result.recommendations.reasons[product.id][0]}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
+                  )}
                 </CardContent>
               </Card>
             )}

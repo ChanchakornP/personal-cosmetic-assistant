@@ -49,8 +49,6 @@ services:
     container_name: pca-recomsystem
     env_file:
       - ./recomsystem/.env
-    depends_on:
-      - product
     ports:
       - "8001:8001"
 
