@@ -1,18 +1,26 @@
 import glob
 import os
 from typing import Annotated, Any, Dict, List, Optional
+import os
+from typing import Annotated, Any, Dict, List, Optional
 
 import pandas as pd
 import requests
+import requests
 from dotenv import load_dotenv
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from kaggle.api.kaggle_api_extended import KaggleApi
+from kaggle.api.kaggle_api_extended import KaggleApi
 from pydantic import BaseModel, ConfigDict, Field
+from supabase import Client, create_client
 from supabase import Client, create_client
 
 # -------------------- Environment and Supabase Client --------------------
 load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -25,6 +33,7 @@ app = FastAPI(title="Products API", version="1.0.0")
 # -------------------- CORS --------------------
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=["*"],
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
@@ -90,6 +99,7 @@ class ProductUpdateDTO(BaseModel):
 
 
 # ---------- 映射：DB <-> DTO ----------
+# ---------- 映射：DB <-> DTO ----------
 def db_to_dto(row: dict) -> ProductDTO:
     return ProductDTO(
         id=row["id"],
@@ -142,8 +152,12 @@ def dto_to_db_update(dto: ProductUpdateDTO) -> dict:
 
 
 # ---------- CRUD ----------
+# ---------- CRUD ----------
 @app.get("/api/products", response_model=List[ProductDTO])
 def list_products(
+    q: Annotated[
+        Optional[str], Query(description="Perform a fuzzy search on name")
+    ] = None,
     q: Annotated[
         Optional[str], Query(description="Perform a fuzzy search on name")
     ] = None,
@@ -181,7 +195,8 @@ def create_product(payload: ProductCreateDTO):
     res = supabase.table("product").insert(db_row).select("*").single().execute()
     if not res.data:
         raise HTTPException(status_code=400, detail="Failed to create product")
-    return db_to_dto(res.data)
+    created = res.data[0]
+    return db_to_dto(created)
 
 
 @app.put("/api/products/{product_id}", response_model=ProductDTO)
@@ -200,7 +215,8 @@ def update_product(product_id: int, payload: ProductUpdateDTO):
     )
     if not res.data:
         raise HTTPException(status_code=404, detail="Product not found or not updated")
-    return db_to_dto(res.data)
+    updated = res.data[0]
+    return db_to_dto(updated)
 
 
 @app.delete("/api/products/{product_id}", status_code=204)
@@ -219,10 +235,14 @@ def delete_product(product_id: int):
 
 
 # ---------- 健康检查 ----------
+# ---------- 健康检查 ----------
 @app.get("/api/health")
 def health():
     res = supabase.table("product").select("id", count="exact").execute()
     return {"ok": True, "productCount": res.count or 0}
+
+
+# ---------- 爬虫：抓取 mock 数据并入库 ----------
 
 
 # -------------------- Web crawling / Importing data from Kaggle --------------------
@@ -243,6 +263,9 @@ def _normalize_item(item: dict) -> dict:
     price = float(item.get("price") or 0.0)
     category = str(item.get("category") or "") or None
     image = item.get("image") or (
+        item.get("images")[0]
+        if isinstance(item.get("images"), list) and item.get("images")
+        else None
         item.get("images")[0]
         if isinstance(item.get("images"), list) and item.get("images")
         else None
@@ -277,6 +300,9 @@ def fetch_from_kaggle_cosmetics(limit: int) -> List[Dict[str, Any]]:
     if not any(glob.glob(os.path.join(target_dir, "*"))):
         api = KaggleApi()
         api.authenticate()
+        api.dataset_download_files(
+            "kingabzpro/cosmetics-datasets", path=target_dir, unzip=True
+        )
         api.dataset_download_files(
             "kingabzpro/cosmetics-datasets", path=target_dir, unzip=True
         )
@@ -342,6 +368,11 @@ def fetch_from_kaggle_cosmetics(limit: int) -> List[Dict[str, Any]]:
 
         for _, row in df.head(limit).iterrows():
             name_v = str(row.get(c_name) if c_name in df.columns else "").strip()
+            brand_v = (
+                str(row.get(c_brand) if c_brand in df.columns else "").strip()
+                if c_brand
+                else ""
+            )
             brand_v = (
                 str(row.get(c_brand) if c_brand in df.columns else "").strip()
                 if c_brand

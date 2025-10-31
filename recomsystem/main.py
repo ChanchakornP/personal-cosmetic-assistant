@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from services.product_client import product_client
+from services.supabase_client import supabase_client
 from services.llm_client import llm_client
 from services.recommendation_engine import recommendation_engine
 from models.dtos import (
@@ -37,20 +37,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Environment configuration
-PRODUCT_API_URL = os.getenv("PRODUCT_API_URL", "http://localhost:8000")
+# Environment configuration (now using Supabase directly)
 
 # Health check endpoint
 @app.get("/api/health")
 def health():
     """Health check endpoint"""
-    product_api_connected = product_client.health_check()
+    supabase_connected = supabase_client.health_check()
     llm_health = llm_client.health_check()
     return {
         "ok": True,
         "service": "Recommendation System",
-        "productApiUrl": PRODUCT_API_URL,
-        "productApiConnected": product_api_connected,
+        "supabaseConnected": supabase_connected,
         "llmClient": llm_health
     }
 

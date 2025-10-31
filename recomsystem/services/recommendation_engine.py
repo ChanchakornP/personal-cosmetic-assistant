@@ -4,7 +4,7 @@ Recommendation engine service that orchestrates recommendation algorithms.
 
 from typing import List, Dict, Optional
 from models.dtos import ProductDTO, SkinProfileDTO, RecommendationResponse
-from services.product_client import product_client
+from services.supabase_client import supabase_client
 from services.llm_client import llm_client
 from algorithms.content_based import rank_products as content_rank, generate_recommendation_reasons
 from algorithms.popularity import rank_products as popularity_rank
@@ -15,7 +15,8 @@ class RecommendationEngine:
     """Main recommendation engine that coordinates recommendation algorithms"""
     
     def __init__(self):
-        self.product_client = product_client
+        # Use Supabase client for direct database access
+        self.product_client = supabase_client
         # LLM client connection is established at initialization
         self.llm_client = llm_client
     
@@ -68,8 +69,20 @@ class RecommendationEngine:
         reasons = {}
         for product in top_products:
             score = next(score for p, score in ranked_products if p.id == product.id)
-            product_reasons = generate_recommendation_reasons(product, skin_profile, score)
-            reasons[str(product.id)] = product_reasons
+            
+            # Try LLM-generated explanation first (uses product data from database)
+            if self.llm_client.is_available():
+                llm_explanation = self._generate_llm_explanation(product, skin_profile)
+                if llm_explanation:
+                    reasons[str(product.id)] = [llm_explanation]
+                else:
+                    # Fallback to rule-based reasons if LLM fails
+                    product_reasons = generate_recommendation_reasons(product, skin_profile, score)
+                    reasons[str(product.id)] = product_reasons
+            else:
+                # Use rule-based reasons if LLM not available
+                product_reasons = generate_recommendation_reasons(product, skin_profile, score)
+                reasons[str(product.id)] = product_reasons
         
         return RecommendationResponse(
             products=top_products,
@@ -79,7 +92,7 @@ class RecommendationEngine:
     
     def _fetch_products(self, skin_profile: SkinProfileDTO) -> List[ProductDTO]:
         """
-        Fetch products from Product API based on profile preferences.
+        Fetch products from Supabase database based on profile preferences.
         
         Args:
             skin_profile: User's skin profile
@@ -126,6 +139,45 @@ class RecommendationEngine:
                 return self.product_client.get_all_products(limit=200)
             except Exception:
                 return []
+    
+    def _generate_llm_explanation(
+        self,
+        product: ProductDTO,
+        skin_profile: SkinProfileDTO
+    ) -> Optional[str]:
+        """
+        Generate LLM-powered explanation for a product recommendation.
+        Uses product data directly from Supabase database.
+        
+        Args:
+            product: Product from Supabase database
+            skin_profile: User's skin profile
+            
+        Returns:
+            LLM-generated explanation or None if generation fails
+        """
+        # Build skin profile summary
+        profile_parts = []
+        if skin_profile.skinType:
+            profile_parts.append(f"Skin type: {skin_profile.skinType}")
+        if skin_profile.concerns:
+            profile_parts.append(f"Concerns: {', '.join(skin_profile.concerns)}")
+        if skin_profile.budgetRange:
+            min_price = skin_profile.budgetRange.get("min", 0)
+            max_price = skin_profile.budgetRange.get("max", float('inf'))
+            profile_parts.append(f"Budget: ${min_price:.2f} - ${max_price:.2f}")
+        
+        skin_profile_summary = "; ".join(profile_parts) if profile_parts else "No specific preferences"
+        
+        # Get product description from database (use description or name if description is empty)
+        product_description = product.description or product.name
+        
+        # Generate explanation using LLM with product data from database
+        return self.llm_client.generate_recommendation_explanation(
+            product_name=product.name,
+            product_description=product_description,
+            skin_profile_summary=skin_profile_summary
+        )
 
 
 # Global instance
