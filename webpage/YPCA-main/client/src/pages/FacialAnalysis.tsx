@@ -152,12 +152,12 @@ export default function FacialAnalysis() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
+    <div className="min-h-screen">
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Analysis Form */}
           <div className="lg:col-span-2">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <CardTitle>Upload Your Photo</CardTitle>
                 <CardDescription>
@@ -312,7 +312,7 @@ export default function FacialAnalysis() {
           {/* Analysis Results */}
           <div className="space-y-6">
             {result && (
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle>Analysis Result</CardTitle>
                 </CardHeader>
@@ -342,7 +342,7 @@ export default function FacialAnalysis() {
                       <p className="text-sm text-gray-600 mb-3">Recommended Products ({result.recommendations.count})</p>
                       <div className="space-y-3 max-h-96 overflow-y-auto">
                         {result.recommendations.products.map((product: any, idx: number) => (
-                          <div key={idx} className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div key={idx} className="p-3 glass-surface rounded-lg hover:shadow-md transition-all">
                             <div className="flex items-start gap-3">
                               {product.mainImageUrl && (
                                 <img

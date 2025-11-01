@@ -22,7 +22,7 @@ export default function Home() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
+      <div className="min-h-screen">
         {/* Hero Section */}
         <section className="container mx-auto px-4 py-20">
           <div className="max-w-3xl mx-auto text-center">
@@ -48,7 +48,7 @@ export default function Home() {
         <section className="container mx-auto px-4 py-20">
           <h2 className="text-3xl font-bold text-center mb-12">Key Features</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <Upload className="w-8 h-8 text-pink-500 mb-2" />
                 <CardTitle>Facial Analysis</CardTitle>
@@ -60,7 +60,7 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <Sparkles className="w-8 h-8 text-purple-500 mb-2" />
                 <CardTitle>Smart Recommendations</CardTitle>
@@ -72,7 +72,7 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <Beaker className="w-8 h-8 text-blue-500 mb-2" />
                 <CardTitle>Conflict Detection</CardTitle>
@@ -84,7 +84,7 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <TrendingUp className="w-8 h-8 text-green-500 mb-2" />
                 <CardTitle>Progress Tracking</CardTitle>
@@ -99,7 +99,7 @@ export default function Home() {
         </section>
 
         {/* How It Works */}
-        <section className="container mx-auto px-4 py-20 bg-white rounded-lg my-20">
+        <section className="container mx-auto px-4 py-20 glass-card rounded-lg my-20">
           <h2 className="text-3xl font-bold text-center mb-12">How It Works</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
@@ -149,14 +149,14 @@ export default function Home() {
 
   // Authenticated user dashboard
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
+    <div className="min-h-screen">
       {/* Dashboard Content */}
       <div className="container mx-auto px-4 py-12">
         <h1 className="text-4xl font-bold mb-12">Welcome Home</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <Link href="/facial-analysis">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+            <Card className="glass-card cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02]">
               <CardHeader>
                 <Upload className="w-8 h-8 text-pink-500 mb-2" />
                 <CardTitle>Facial Analysis</CardTitle>
@@ -170,7 +170,7 @@ export default function Home() {
           </Link>
 
           <Link href="/conflict-analyzer">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+            <Card className="glass-card cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02]">
               <CardHeader>
                 <Beaker className="w-8 h-8 text-blue-500 mb-2" />
                 <CardTitle>Conflict Analyzer</CardTitle>
@@ -184,7 +184,7 @@ export default function Home() {
           </Link>
 
           <Link href="/routine-tracker">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+            <Card className="glass-card cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02]">
               <CardHeader>
                 <TrendingUp className="w-8 h-8 text-green-500 mb-2" />
                 <CardTitle>Routine Tracker</CardTitle>
@@ -198,7 +198,7 @@ export default function Home() {
           </Link>
 
           <Link href="/products">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+            <Card className="glass-card cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02]">
               <CardHeader>
                 <ShoppingBag className="w-8 h-8 text-orange-500 mb-2" />
                 <CardTitle>Products</CardTitle>

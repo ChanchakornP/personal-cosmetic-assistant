@@ -135,12 +135,12 @@ export default function Recommendations() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
+    <div className="min-h-screen">
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Preference Form */}
           <div className="lg:col-span-2">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <CardTitle>Get Personalized Recommendations</CardTitle>
                 <CardDescription>
@@ -259,7 +259,7 @@ export default function Recommendations() {
               <div className="space-y-4">
                 <h3 className="font-bold text-lg">Recommended Products</h3>
                 {recommendations.products.map((product: any) => (
-                  <Card key={product.id}>
+                  <Card key={product.id} className="glass-card">
                     <CardContent className="pt-6">
                       <div className="space-y-3">
                         <div>
@@ -309,7 +309,7 @@ export default function Recommendations() {
                 ))}
 
                 {recommendations.recommendations && (
-                  <Card>
+                  <Card className="glass-card">
                     <CardHeader>
                       <CardTitle className="text-base">Why These?</CardTitle>
                     </CardHeader>
@@ -325,7 +325,7 @@ export default function Recommendations() {
 
             {/* Saved Products */}
             {savedProducts.length > 0 && (
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="text-base">
                     Saved Products ({savedProducts.length})

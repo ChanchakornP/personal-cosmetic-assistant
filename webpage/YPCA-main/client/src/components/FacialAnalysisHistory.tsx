@@ -148,7 +148,7 @@ export default function FacialAnalysisHistory() {
 
     if (loading) {
         return (
-            <Card>
+            <Card className="glass-card">
                 <CardContent className="pt-6">
                     <div className="flex items-center justify-center py-8">
                         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -160,7 +160,7 @@ export default function FacialAnalysisHistory() {
 
     if (history.length === 0) {
         return (
-            <Card>
+            <Card className="glass-card">
                 <CardHeader>
                     <CardTitle>Analysis History</CardTitle>
                 </CardHeader>
@@ -177,7 +177,7 @@ export default function FacialAnalysisHistory() {
 
     return (
         <>
-            <Card>
+            <Card className="glass-card">
                 <CardHeader>
                     <CardTitle>Analysis History</CardTitle>
                 </CardHeader>
@@ -194,7 +194,7 @@ export default function FacialAnalysisHistory() {
                                 open={isExpanded}
                                 onOpenChange={() => toggleExpanded(item.id, item.productIds)}
                             >
-                                <Card className="border">
+                                <Card className="glass-card border-white/30">
                                     <CollapsibleTrigger asChild>
                                         <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
                                             <div className="flex items-start justify-between">
@@ -311,7 +311,7 @@ export default function FacialAnalysisHistory() {
                                                         {products.map((product) => (
                                                             <div
                                                                 key={product.id}
-                                                                className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                                                className="p-3 glass-surface rounded-lg hover:shadow-md transition-all"
                                                             >
                                                                 <div className="flex items-start gap-3">
                                                                     {product.imageUrl && (
