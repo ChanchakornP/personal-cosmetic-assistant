@@ -168,20 +168,6 @@ export default function Home() {
             </Card>
           </Link>
 
-          <Link href="/recommendations">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <Sparkles className="w-8 h-8 text-purple-500 mb-2" />
-                <CardTitle>Recommendations</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Get personalized product recommendations
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
           <Link href="/conflict-analyzer">
             <Card className="cursor-pointer hover:shadow-lg transition-shadow">
               <CardHeader>
@@ -224,30 +210,6 @@ export default function Home() {
             </Card>
           </Link>
         </div>
-
-        {/* Quick Stats */}
-        <Card className="mb-12">
-          <CardHeader>
-            <CardTitle>Your Skincare Journey</CardTitle>
-            <CardDescription>Track your progress and insights</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div>
-                <p className="text-gray-600 mb-2">Analyses Completed</p>
-                <p className="text-3xl font-bold text-pink-600">0</p>
-              </div>
-              <div>
-                <p className="text-gray-600 mb-2">Products Saved</p>
-                <p className="text-3xl font-bold text-purple-600">0</p>
-              </div>
-              <div>
-                <p className="text-gray-600 mb-2">Routines Logged</p>
-                <p className="text-3xl font-bold text-blue-600">0</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

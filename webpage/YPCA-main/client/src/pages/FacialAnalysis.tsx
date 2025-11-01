@@ -17,6 +17,8 @@ export default function FacialAnalysis() {
   const [imageUrl, setImageUrl] = useState("");
   const [skinType, setSkinType] = useState("");
   const [concerns, setConcerns] = useState<string[]>([]);
+  const [minPrice, setMinPrice] = useState<string>("");
+  const [maxPrice, setMaxPrice] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<FacialAnalysisResponse | null>(null);
 
@@ -41,10 +43,52 @@ export default function FacialAnalysis() {
 
     setLoading(true);
     try {
+      // Build budgetRange from user-specified min/max prices
+      const budgetRange = (() => {
+        const min = minPrice ? parseFloat(minPrice) : undefined;
+        const max = maxPrice ? parseFloat(maxPrice) : undefined;
+
+        // Validate that parsed values are valid numbers
+        if (minPrice) {
+          if (isNaN(min!) || min! < 0) {
+            toast.error("Please enter a valid minimum price (must be a number >= 0)");
+            setLoading(false);
+            return null;
+          }
+        }
+        if (maxPrice) {
+          if (isNaN(max!) || max! < 0) {
+            toast.error("Please enter a valid maximum price (must be a number >= 0)");
+            setLoading(false);
+            return null;
+          }
+        }
+
+        if (min !== undefined && max !== undefined) {
+          if (min > max) {
+            toast.error("Minimum price cannot be greater than maximum price");
+            setLoading(false);
+            return null;
+          }
+          return { min, max };
+        } else if (min !== undefined) {
+          return { min };
+        } else if (max !== undefined) {
+          return { max };
+        }
+        return undefined;
+      })();
+
+      if (budgetRange === null) {
+        // Validation error occurred
+        return;
+      }
+
       const response = await analyzeFacialImage({
         imageUrl,
         skinType: skinType || undefined,
         detectedConcerns: concerns.length > 0 ? concerns : undefined,
+        budgetRange,
         limit: 10,
       });
       setResult(response);
@@ -191,6 +235,44 @@ export default function FacialAnalysis() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Price Range */}
+                <div className="space-y-2">
+                  <Label>Price Range (Optional)</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="min-price" className="text-xs text-muted-foreground">
+                        Min Price ($)
+                      </Label>
+                      <Input
+                        id="min-price"
+                        type="number"
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        value={minPrice}
+                        onChange={(e) => setMinPrice(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="max-price" className="text-xs text-muted-foreground">
+                        Max Price ($)
+                      </Label>
+                      <Input
+                        id="max-price"
+                        type="number"
+                        placeholder="100.00"
+                        min="0"
+                        step="0.01"
+                        value={maxPrice}
+                        onChange={(e) => setMaxPrice(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Leave empty to search all prices. You can specify just min, just max, or both.
+                  </p>
                 </div>
 
                 {/* Analyze Button */}

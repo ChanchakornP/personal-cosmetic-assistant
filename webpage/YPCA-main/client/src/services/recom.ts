@@ -36,6 +36,7 @@ export async function analyzeFacialImage(params: {
     imageUrl: string;
     skinType?: string;
     detectedConcerns?: string[];
+    budgetRange?: { min?: number; max?: number };
     limit?: number;
 }): Promise<FacialAnalysisResponse> {
     const base = (import.meta.env.VITE_RECOM_API_URL as string) || "http://localhost:8001";

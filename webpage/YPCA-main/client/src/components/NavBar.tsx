@@ -1,14 +1,27 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
-import { ShoppingCart } from "lucide-react";
-import { Link } from "wouter";
+import { ShoppingCart, User, LayoutDashboard, LogOut } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { useCart } from "@/contexts/CartContext";
 
 export default function NavBar() {
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
     const { items } = useCart();
+    const [, setLocation] = useLocation();
     const cartItemCount = items.reduce((sum, i) => sum + i.quantity, 0);
+
+    const handleLogout = async () => {
+        await logout();
+        setLocation("/");
+    };
 
     return (
         <nav className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
@@ -20,7 +33,6 @@ export default function NavBar() {
                                 <img src={APP_LOGO} alt="logo" className="h-8 cursor-pointer" />
                             </Link>
                         )}
-                        <span className="text-xl font-bold text-gray-900">{APP_TITLE}</span>
                     </div>
                     <Link href="/products">
                         <Button variant="outline" size="sm">Products</Button>
@@ -29,7 +41,6 @@ export default function NavBar() {
                 <div className="flex items-center gap-4">
                     {user ? (
                         <>
-                            <span className="text-sm text-gray-600">Welcome, {user?.name || "User"}</span>
                             <Link href="/cart">
                                 <Button variant="outline" size="sm" className="relative">
                                     <ShoppingCart className="w-4 h-4 mr-2" />
@@ -41,9 +52,29 @@ export default function NavBar() {
                                     )}
                                 </Button>
                             </Link>
-                            <Link href="/profile">
-                                <Button variant="outline" size="sm">Profile</Button>
-                            </Link>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                        <User className="w-4 h-4 mr-2" />
+                                        {user?.name || "Profile"}
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                    <DropdownMenuItem onClick={() => setLocation("/")}>
+                                        <LayoutDashboard className="w-4 h-4 mr-2" />
+                                        Dashboard
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setLocation("/profile")}>
+                                        <User className="w-4 h-4 mr-2" />
+                                        Profile
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={handleLogout}>
+                                        <LogOut className="w-4 h-4 mr-2" />
+                                        Logout
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </>
                     ) : (
                         <Button onClick={() => (window.location.href = getLoginUrl())}>Sign In</Button>
