@@ -22,6 +22,20 @@ except ImportError:
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Load environment variables early
+try:
+    from dotenv import load_dotenv
+
+    # Load .env file from the recomsystem directory
+    env_path = Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
+    else:
+        # Also try loading from current directory
+        load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, will rely on system env vars
+
 # Try to import Pydantic for schema definitions
 try:
     from pydantic import BaseModel
@@ -114,6 +128,151 @@ class LLMClient:
         """
         return self._initialized and self.client is not None
 
+    def _is_max_tokens(self, finish_reason_str: str, finish_reason_name: str) -> bool:
+        """
+        Check if finish reason indicates MAX_TOKENS was reached.
+
+        Args:
+            finish_reason_str: String representation of finish reason
+            finish_reason_name: Enum name of finish reason if available
+
+        Returns:
+            True if MAX_TOKENS was hit
+        """
+        if not finish_reason_str:
+            return False
+        upper_str = finish_reason_str.upper()
+        upper_name = finish_reason_name.upper()
+        return (
+            "MAX_TOKENS" in upper_str
+            or upper_name == "MAX_TOKENS"
+            or ("MAX" in upper_str and "TOKEN" in upper_str)
+        )
+
+    def _extract_text_from_response(
+        self, response: Any, debug: bool = False
+    ) -> Optional[str]:
+        """
+        Extract text from LLM response object, trying multiple methods.
+
+        Args:
+            response: LLM response object
+            debug: Enable debug logging
+
+        Returns:
+            Extracted text or None if not found
+        """
+        # Try response.text first
+        if hasattr(response, "text"):
+            try:
+                text = response.text
+                if text:
+                    if debug:
+                        print(f"Got text from response.text: {len(text)} chars")
+                    return text
+            except Exception as e:
+                if debug:
+                    print(f"Error accessing response.text: {e}")
+
+        # Try extracting from candidates
+        if not hasattr(response, "candidates") or not response.candidates:
+            return None
+
+        candidate = response.candidates[0]
+
+        # Try candidate.text
+        if hasattr(candidate, "text"):
+            try:
+                text = candidate.text
+                if text:
+                    if debug:
+                        print(f"Extracted text from candidate.text: {len(text)} chars")
+                    return text
+            except Exception as e:
+                if debug:
+                    print(f"Error accessing candidate.text: {e}")
+
+        # Try candidate.content.parts
+        if hasattr(candidate, "content"):
+            try:
+                content = candidate.content
+                if hasattr(content, "parts") and content.parts:
+                    for i, part in enumerate(content.parts):
+                        if hasattr(part, "text"):
+                            text = part.text
+                            if text:
+                                if debug:
+                                    print(
+                                        f"Extracted text from content.parts[{i}]: {len(text)} chars"
+                                    )
+                                return text
+                elif hasattr(content, "text"):
+                    text = content.text
+                    if text:
+                        if debug:
+                            print(
+                                f"Extracted text from content.text: {len(text)} chars"
+                            )
+                        return text
+            except Exception as e:
+                if debug:
+                    print(f"Error accessing candidate.content: {e}")
+
+        return None
+
+    def _get_finish_reason_info(self, candidate: Any) -> tuple[str, str]:
+        """
+        Extract finish reason information from candidate.
+
+        Args:
+            candidate: Candidate object from LLM response
+
+        Returns:
+            Tuple of (finish_reason_str, finish_reason_name)
+        """
+        if not hasattr(candidate, "finish_reason"):
+            return "", ""
+
+        finish_reason = candidate.finish_reason
+        finish_reason_str = str(finish_reason)
+        finish_reason_name = (
+            finish_reason.name if hasattr(finish_reason, "name") else str(finish_reason)
+        )
+
+        return finish_reason_str, finish_reason_name
+
+    def _debug_candidate_structure(self, candidate: Any) -> None:
+        """
+        Print debug information about candidate structure (for troubleshooting).
+
+        Args:
+            candidate: Candidate object from LLM response
+        """
+        print(
+            f"DEBUG: Candidate attributes: {[attr for attr in dir(candidate) if not attr.startswith('_')]}"
+        )
+        if hasattr(candidate, "content"):
+            print(f"DEBUG: Content type: {type(candidate.content)}")
+            print(
+                f"DEBUG: Content attributes: {[attr for attr in dir(candidate.content) if not attr.startswith('_')]}"
+            )
+            try:
+                print(
+                    f"DEBUG: content.parts type: {type(candidate.content.parts) if hasattr(candidate.content, 'parts') else 'no parts attr'}"
+                )
+                if hasattr(candidate.content, "parts") and candidate.content.parts:
+                    print(f"DEBUG: Number of parts: {len(candidate.content.parts)}")
+                    for i, part in enumerate(candidate.content.parts):
+                        print(
+                            f"DEBUG: Part {i} type: {type(part)}, has text: {hasattr(part, 'text')}"
+                        )
+                        if hasattr(part, "text"):
+                            print(
+                                f"DEBUG: Part {i} text length: {len(part.text) if part.text else 0}"
+                            )
+            except Exception as e:
+                print(f"DEBUG: Error inspecting content: {e}")
+
     def generate_text(
         self,
         prompt: str,
@@ -139,6 +298,9 @@ class LLMClient:
             return None
 
         last_error = None
+        current_max_tokens = (
+            max_tokens  # Track current token limit (may increase on retries)
+        )
         for attempt in range(max_retries + 1):
             try:
                 # Build the full prompt
@@ -147,9 +309,12 @@ class LLMClient:
                     full_prompt = f"{system_prompt}\n\n{prompt}"
 
                 # Configure generation parameters using new API
+                # Use current_max_tokens which may have been increased on previous attempts
                 config = types.GenerateContentConfig(
                     temperature=temperature,
-                    max_output_tokens=max_tokens if max_tokens else None,
+                    max_output_tokens=(
+                        current_max_tokens if current_max_tokens else None
+                    ),
                 )
 
                 # Generate response using new API
@@ -157,14 +322,70 @@ class LLMClient:
                     model=self.model, contents=[full_prompt], config=config
                 )
 
-                if not response.text:
+                # Extract text from response
+                response_text = self._extract_text_from_response(response, debug=True)
+
+                # Get finish reason info
+                finish_reason_str = ""
+                finish_reason_name = ""
+                candidate = None
+                if hasattr(response, "candidates") and response.candidates:
+                    candidate = response.candidates[0]
+                    finish_reason_str, finish_reason_name = (
+                        self._get_finish_reason_info(candidate)
+                    )
+                    if finish_reason_str:
+                        print(
+                            f"Finish reason: {finish_reason_str} (name: {finish_reason_name})"
+                        )
+
+                    # Debug structure when MAX_TOKENS is detected
+                    if self._is_max_tokens(finish_reason_str, finish_reason_name):
+                        print("DEBUG: MAX_TOKENS detected!")
+                        self._debug_candidate_structure(candidate)
+
+                    # Handle MAX_TOKENS case
+                    if self._is_max_tokens(finish_reason_str, finish_reason_name):
+                        if response_text and response_text.strip():
+                            print(
+                                f"Warning: Response truncated at max_tokens, using partial response ({len(response_text)} chars)"
+                            )
+                            return response_text
+                        else:
+                            print("Error: MAX_TOKENS but could not extract any text")
+                            # Increase tokens and retry
+                            if attempt < max_retries:
+                                current_max_tokens = (
+                                    (current_max_tokens * 2)
+                                    if current_max_tokens
+                                    else 4000
+                                )
+                                print(
+                                    f"Increasing max_tokens to {current_max_tokens} and retrying (attempt {attempt + 1})..."
+                                )
+                                continue  # Retry with higher token limit
+
+                    # Log safety ratings if available
+                    if candidate and hasattr(candidate, "safety_ratings"):
+                        print(f"Safety ratings: {candidate.safety_ratings}")
+
+                if not response_text or not response_text.strip():
+                    # Check if there's a blocking reason or safety filter
+                    if hasattr(response, "prompt_feedback"):
+                        print(f"Prompt feedback: {response.prompt_feedback}")
+
                     if attempt < max_retries:
+                        print(f"Empty response on attempt {attempt + 1}, retrying...")
                         continue  # Retry on empty response
                     # Only log error on final attempt to avoid spam
+                    print(
+                        f"Final attempt failed - empty response after {max_retries + 1} attempts"
+                    )
                     return None
-                return response.text
+                return response_text
             except Exception as e:
                 last_error = e
+                print(f"Exception on attempt {attempt + 1}: {str(e)}")
                 if attempt < max_retries:
                     continue  # Retry on exception
                 # Only log error on final attempt
@@ -468,6 +689,158 @@ Please identify:
                 "concerns": user_concerns or [],
                 "analysis": f"Unable to perform AI analysis. User-reported skin type: {user_skin_type or 'not provided'}.",
             }
+
+    def analyze_ingredient_conflicts(
+        self, products: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Analyze ingredient conflicts between multiple cosmetic products using LLM.
+
+        Args:
+            products: List of product dictionaries with keys: id, name, ingredients
+
+        Returns:
+            Dictionary with conflict analysis including conflictDetected, conflictDetails, safetyWarning, and alternatives
+        """
+        if not self.is_available():
+            return None
+
+        try:
+            # Build prompt with product information (truncate long ingredient lists)
+            def truncate_ingredients(ingredients: str, max_length: int = 300) -> str:
+                """Truncate ingredient list to prevent overly long prompts."""
+                if not ingredients or ingredients == "Not specified":
+                    return "Not specified"
+                if len(ingredients) <= max_length:
+                    return ingredients
+                # Take first part and add indicator
+                truncated = ingredients[:max_length]
+                # Try to cut at a comma if possible
+                last_comma = truncated.rfind(",")
+                if last_comma > max_length * 0.8:  # If comma is reasonably close to end
+                    truncated = truncated[:last_comma]
+                return truncated + " ... (more ingredients)"
+
+            products_text = "\n".join(
+                [
+                    f"{i+1}. {p.get('name', 'Unknown')}: {truncate_ingredients(p.get('ingredients', 'Not specified'))}"
+                    for i, p in enumerate(products)
+                ]
+            )
+
+            # Use JSON format prompt for very brief response
+            system_prompt = """You are a cosmetic dermatology expert. Return ONLY valid JSON. Keep all text extremely brief - maximum 2-3 sentences per field."""
+
+            user_prompt = f"""Analyze conflicts between these products. Return ONLY JSON:
+
+{{
+  "conflictDetected": true/false,
+  "conflictDetails": "1-2 sentence summary",
+  "safetyWarning": "1 sentence warning or null",
+  "alternatives": ["short tip 1", "short tip 2"]
+}}
+
+Products:
+{products_text}
+
+Rules: conflictDetails max 50 words, alternatives max 3 items (5-10 words each). Be concise. JSON only."""
+
+            # Request very brief JSON response
+            prompt_length = len(user_prompt) + len(system_prompt or "")
+            print(
+                f"Calling LLM for ingredient conflict analysis with {len(products)} products (prompt length: {prompt_length} chars)"
+            )
+            response_text = self.generate_text(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                temperature=0.1,  # Very low temperature for consistent, brief JSON
+                max_tokens=400,  # Increased slightly to handle multiple products but still brief
+                max_retries=3,  # More retries to handle edge cases
+            )
+
+            if not response_text:
+                print(
+                    f"Warning: LLM returned empty response for ingredient conflict analysis"
+                )
+                print(f"Products: {[p.get('name') for p in products]}")
+                print(f"Prompt length: {prompt_length} chars")
+                return None
+
+            # Parse JSON response
+            try:
+                # Try to extract JSON from response (may be wrapped in markdown code blocks)
+                json_text = response_text.strip()
+
+                # Remove markdown code blocks if present
+                if json_text.startswith("```"):
+                    # Extract JSON from code block
+                    json_match = re.search(
+                        r"```(?:json)?\s*(\{[\s\S]*\})\s*```", json_text
+                    )
+                    if json_match:
+                        json_text = json_match.group(1)
+                    else:
+                        # Try to find JSON object
+                        json_match = re.search(r"\{[\s\S]*\}", json_text)
+                        if json_match:
+                            json_text = json_match.group(0)
+
+                # Parse JSON
+                result = json.loads(json_text)
+
+                # Validate and normalize response structure
+                return {
+                    "conflictDetected": bool(result.get("conflictDetected", False)),
+                    "conflictDetails": str(
+                        result.get("conflictDetails", "No detailed analysis available.")
+                    ),
+                    "safetyWarning": (
+                        result.get("safetyWarning")
+                        if result.get("safetyWarning")
+                        else None
+                    ),
+                    "alternatives": (
+                        result.get("alternatives", [])
+                        if isinstance(result.get("alternatives"), list)
+                        else []
+                    ),
+                }
+            except json.JSONDecodeError as e:
+                print(f"Error parsing JSON response: {e}")
+                print(
+                    f"Response text: {response_text[:500]}"
+                )  # Print first 500 chars for debugging
+
+                # Fallback: try to extract basic info from text
+                response_lower = response_text.lower()
+                conflict_detected = any(
+                    keyword in response_lower
+                    for keyword in [
+                        "conflict",
+                        "incompatible",
+                        "interaction",
+                        "warning",
+                        "risk",
+                    ]
+                )
+
+                return {
+                    "conflictDetected": conflict_detected,
+                    "conflictDetails": response_text[:500],  # Truncate to 500 chars
+                    "safetyWarning": (
+                        "Unable to parse response format. Please try again."
+                        if not conflict_detected
+                        else None
+                    ),
+                    "alternatives": [],
+                }
+
+        except Exception as e:
+            print(f"Error analyzing ingredient conflicts with LLM: {str(e)}")
+            import traceback
+
+            print(f"Traceback: {traceback.format_exc()}")
+            return None
 
 
 # Global instance - connection will be established when imported

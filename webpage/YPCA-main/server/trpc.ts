@@ -1,13 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
-import { getSupabaseClient } from "./lib/supabase-server";
-import type { Request, Response } from "express";
-
-export type Context = {
-    req: Request;
-    res: Response;
-    supabase: ReturnType<typeof getSupabaseClient>;
-};
+import type { Context } from "./context";
 
 const t = initTRPC.context<Context>().create({
     transformer: superjson,

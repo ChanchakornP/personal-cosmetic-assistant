@@ -18,7 +18,7 @@ type ProductRow = {
 export async function fetchProducts(): Promise<Product[]> {
     const { data, error } = await supabase
         .from("product")
-        .select("id, name, brand, description, price, category, rank, main_image_url, stock")
+        .select("id, name, brand, description, price, category, rank, main_image_url, stock, ingredients")
         .order("name");
 
     if (error) throw error;
@@ -33,6 +33,7 @@ export async function fetchProducts(): Promise<Product[]> {
         imageUrl: p.main_image_url ?? undefined,
         description: p.description ?? undefined,
         stock: p.stock ?? undefined,
+        ingredients: (p as any).ingredients ?? undefined,
     }));
 }
 

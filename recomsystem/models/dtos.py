@@ -80,3 +80,24 @@ class FacialAnalysisResponse(BaseModel):
     detectedConcerns: List[str] = Field(description="Detected skin concerns")
     analysisResult: str = Field(description="Detailed AI analysis of the skin")
     recommendations: RecommendationResponse = Field(description="Recommended products")
+
+
+class IngredientConflictRequest(BaseModel):
+    """Request for ingredient conflict analysis"""
+
+    products: List[dict] = Field(
+        description="List of products with id, name, and ingredients"
+    )
+
+
+class IngredientConflictResponse(BaseModel):
+    """Response from ingredient conflict analysis"""
+
+    conflictDetected: bool = Field(description="Whether conflicts were detected")
+    conflictDetails: str = Field(description="Detailed conflict analysis")
+    safetyWarning: Optional[str] = Field(
+        None, description="Safety warning if conflicts detected"
+    )
+    alternatives: List[str] = Field(
+        default_factory=list, description="Alternative usage suggestions"
+    )

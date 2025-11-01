@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from models.dtos import (
     FacialAnalysisRequest,
     FacialAnalysisResponse,
+    IngredientConflictRequest,
+    IngredientConflictResponse,
     RecommendationRequest,
     RecommendationResponse,
     SkinProfileDTO,
@@ -69,6 +71,7 @@ def root():
             "recommendations": "/api/recommendations (POST)",
             "quick_recommendations": "/api/recommendations/quick (GET)",
             "facial_analysis": "/api/facial-analysis (POST)",
+            "ingredient_conflict": "/api/ingredient-conflict (POST)",
         },
     }
 
@@ -183,6 +186,64 @@ def analyze_facial_image(request: FacialAnalysisRequest = Body(...)):
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to analyze facial image: {str(e)}"
+        )
+
+
+# Ingredient conflict analysis endpoint
+@app.post("/api/ingredient-conflict", response_model=IngredientConflictResponse)
+def analyze_ingredient_conflicts(request: IngredientConflictRequest = Body(...)):
+    """
+    Analyze ingredient conflicts between multiple cosmetic products using LLM.
+
+    Request body should contain:
+    - products: List of product dictionaries with id, name, and ingredients
+    """
+    try:
+        if not request.products or len(request.products) < 2:
+            raise HTTPException(
+                status_code=400, detail="Please provide at least 2 products to analyze"
+            )
+
+        # Check if LLM service is available
+        if not llm_client.is_available():
+            # Provide detailed error message based on what's missing
+            import os
+
+            gemini_key = os.getenv("GEMINI_API_KEY")
+
+            if not gemini_key:
+                error_msg = (
+                    "LLM service is not available: GEMINI_API_KEY environment variable is not set. "
+                    "Please add GEMINI_API_KEY to your .env file in the recomsystem directory. "
+                    "Get your API key from: https://makersuite.google.com/app/apikey"
+                )
+            else:
+                error_msg = (
+                    "LLM service is not available: Failed to initialize LLM client. "
+                    "Please check: "
+                    "1. GEMINI_API_KEY is valid "
+                    "2. google-genai package is installed (pip install google-genai) "
+                    "3. Check server logs for initialization errors"
+                )
+
+            raise HTTPException(status_code=503, detail=error_msg)
+
+        # Use LLM to analyze ingredient conflicts
+        analysis_result = llm_client.analyze_ingredient_conflicts(request.products)
+
+        if not analysis_result:
+            # If LLM analysis failed (e.g., empty response), provide helpful error
+            raise HTTPException(
+                status_code=503,
+                detail="LLM analysis failed. The AI service returned no results. Please check your GEMINI_API_KEY configuration and try again.",
+            )
+
+        return IngredientConflictResponse(**analysis_result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to analyze ingredient conflicts: {str(e)}"
         )
 
 
