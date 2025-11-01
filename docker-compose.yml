@@ -42,13 +42,25 @@ services:
     ports:
       - "8000:8000"
 
-  recomsystem:
+  # Original recomsystem (keeping for reference, can be removed)
+  # recomsystem:
+  #   build:
+  #     context: ./recomsystem
+  #     dockerfile: Dockerfile
+  #   container_name: pca-recomsystem
+  #   env_file:
+  #     - ./recomsystem/.env
+  #   ports:
+  #     - "8001:8001"
+
+  # New LangChain-powered agentic AI system
+  pca-agenticai:
     build:
-      context: ./recomsystem
+      context: ./PCA-agenticAI
       dockerfile: Dockerfile
-    container_name: pca-recomsystem
+    container_name: pca-agenticai
     env_file:
-      - ./recomsystem/.env
+      - ./PCA-agenticAI/.env
     ports:
       - "8001:8001"
 
@@ -59,12 +71,8 @@ services:
     container_name: pca-webpage
     ports:
       - "3000:80"
-    depends_on:
-      - product
-      - recomsystem
-      - payment
     environment:
-      - VITE_RECOM_API_URL=http://recomsystem:8001
+      - VITE_RECOM_API_URL=http://pca-agenticai:8001
 
 volumes:
   pg-data:
