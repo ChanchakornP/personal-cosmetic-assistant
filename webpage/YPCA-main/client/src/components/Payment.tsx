@@ -39,7 +39,7 @@ export default function Payment() {
 
     if (items.length === 0) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
+            <div className="min-h-screen">
                 <div className="container mx-auto px-4 py-8">
                     <h1 className="text-2xl font-semibold mb-6">Checkout</h1>
                     <div>Your cart is empty.</div>
@@ -49,7 +49,7 @@ export default function Payment() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
+        <div className="min-h-screen">
             <div className="container mx-auto px-4 py-8">
                 <h1 className="text-2xl font-semibold mb-6">Checkout</h1>
                 <div className="max-w-md border rounded-md p-4 space-y-4">
