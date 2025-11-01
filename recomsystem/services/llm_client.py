@@ -120,6 +120,7 @@ class LLMClient:
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
         system_prompt: Optional[str] = None,
+        max_retries: int = 1,
     ) -> Optional[str]:
         """
         Generate text using the LLM.
@@ -129,6 +130,7 @@ class LLMClient:
             temperature: Sampling temperature (0.0-2.0)
             max_tokens: Maximum tokens to generate (Gemini uses max_output_tokens)
             system_prompt: Optional system prompt (Gemini uses system_instruction)
+            max_retries: Maximum number of retry attempts (default: 1, set to 0 to disable retries)
 
         Returns:
             Generated text or None if generation fails
@@ -136,30 +138,46 @@ class LLMClient:
         if not self.is_available():
             return None
 
-        try:
-            # Build the full prompt
-            full_prompt = prompt
-            if system_prompt:
-                full_prompt = f"{system_prompt}\n\n{prompt}"
+        last_error = None
+        for attempt in range(max_retries + 1):
+            try:
+                # Build the full prompt
+                full_prompt = prompt
+                if system_prompt:
+                    full_prompt = f"{system_prompt}\n\n{prompt}"
 
-            # Configure generation parameters using new API
-            config = types.GenerateContentConfig(
-                temperature=temperature,
-                max_output_tokens=max_tokens if max_tokens else None,
+                # Configure generation parameters using new API
+                config = types.GenerateContentConfig(
+                    temperature=temperature,
+                    max_output_tokens=max_tokens if max_tokens else None,
+                )
+
+                # Generate response using new API
+                response = self.client.models.generate_content(
+                    model=self.model, contents=[full_prompt], config=config
+                )
+
+                if not response.text:
+                    if attempt < max_retries:
+                        continue  # Retry on empty response
+                    # Only log error on final attempt to avoid spam
+                    return None
+                return response.text
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries:
+                    continue  # Retry on exception
+                # Only log error on final attempt
+                break
+
+        # Log error only once after all retries exhausted
+        if last_error:
+            print(
+                f"Error generating text with LLM after {max_retries + 1} attempts: {str(last_error)}"
             )
-
-            # Generate response using new API
-            response = self.client.models.generate_content(
-                model=self.model, contents=[full_prompt], config=config
-            )
-
-            if not response.text:
-                print(f"Error: Empty response from LLM")
-                return None
-            return response.text
-        except Exception as e:
-            print(f"Error generating text with LLM: {str(e)}")
-            return None
+        else:
+            print(f"Error: Empty response from LLM after {max_retries + 1} attempts")
+        return None
 
     def generate_recommendation_explanation(
         self, product_name: str, product_description: str, skin_profile_summary: str
@@ -197,6 +215,90 @@ Generate a brief, personalized explanation."""
             temperature=0.7,
             max_tokens=150,
         )
+
+    def generate_batch_recommendation_explanations(
+        self,
+        products: List[Dict[str, Any]],
+        skin_profile_summary: str,
+    ) -> Optional[Dict[str, str]]:
+        """
+        Generate AI-powered explanations for multiple product recommendations in a single LLM call.
+
+        Args:
+            products: List of product dictionaries with keys: id, name, description
+            skin_profile_summary: Summary of user's skin profile
+
+        Returns:
+            Dictionary mapping product IDs (as strings) to explanations, or None if generation fails
+        """
+        if not self.is_available() or not products:
+            return None
+
+        system_prompt = """You are a cosmetic product recommendation expert. 
+Generate concise, personalized explanations for why each product is recommended based on the user's skin profile.
+Keep each explanation brief (1-2 sentences) and focus on how each product addresses the user's specific needs.
+Return your response as a JSON object where each key is the product ID (as a string) and the value is the explanation for that product."""
+
+        # Build product list in the prompt
+        products_text = "\n\n".join(
+            [
+                f"Product ID: {p['id']}\nProduct: {p['name']}\nDescription: {p.get('description', p['name'])}"
+                for p in products
+            ]
+        )
+
+        user_prompt = f"""Explain why each of these products is recommended for this user:
+
+User Profile: {skin_profile_summary}
+
+Products:
+{products_text}
+
+Generate brief, personalized explanations for each product. Return your response as a JSON object with product IDs as keys and explanations as values.
+Example format: {{"1": "This product...", "2": "This product..."}}"""
+
+        response_text = self.generate_text(
+            prompt=user_prompt,
+            system_prompt=system_prompt,
+            temperature=0.7,
+            max_tokens=min(
+                150 * len(products), 2000
+            ),  # Scale tokens with product count, but cap at 2000
+            max_retries=1,
+        )
+
+        if not response_text:
+            return None
+
+        # Try to parse JSON response
+        try:
+            # Try direct JSON parse first
+            explanations = json.loads(response_text)
+            # Ensure all keys are strings (product IDs)
+            return {str(k): str(v) for k, v in explanations.items()}
+        except json.JSONDecodeError:
+            # Try to extract JSON from markdown code blocks
+            json_match = re.search(r"\{[\s\S]*\}", response_text)
+            if json_match:
+                try:
+                    explanations = json.loads(json_match.group())
+                    return {str(k): str(v) for k, v in explanations.items()}
+                except json.JSONDecodeError:
+                    pass
+
+            # Fallback: If JSON parsing fails, try to extract explanations by product ID
+            # This is a best-effort fallback
+            explanations = {}
+            for product in products:
+                product_id = str(product["id"])
+                product_name = product["name"]
+                # Look for text near the product ID or name
+                pattern = rf"(?:{product_id}|{re.escape(product_name)})[:\-]?\s*([^\"\n]+?)(?=\n\n|\nProduct|\{{|$)"
+                match = re.search(pattern, response_text, re.IGNORECASE)
+                if match:
+                    explanations[product_id] = match.group(1).strip()
+
+            return explanations if explanations else None
 
     def health_check(self) -> Dict[str, Any]:
         """
@@ -330,7 +432,7 @@ Please identify:
 
             # Parse response
             if not response.text:
-                raise ValueError("Empty response from model")
+                raise ValueError("Empty response from model - no text in LLM response")
 
             # With schema, response.text should be valid JSON directly
             try:
