@@ -1,25 +1,42 @@
-import { useState } from "react";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Loader2, AlertTriangle, CheckCircle, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
-import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { fetchProducts } from "@/services/products";
+import type { Product } from "@/types/product";
+
+const RECOM_API_URL = import.meta.env.VITE_RECOM_API_URL || "http://localhost:8001";
 
 export default function ConflictAnalyzer() {
-  const { isAuthenticated } = useAuth();
   const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState<Error | null>(null);
 
-  const productsQuery = trpc.product.list.useQuery();
-  const analyzeConflictMutation = trpc.ingredientConflict.analyze.useMutation();
-  const conflictsQuery = trpc.ingredientConflict.getUserConflicts.useQuery(undefined, {
-    enabled: isAuthenticated,
-  });
+  // Fetch products from Supabase
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        setProductsLoading(true);
+        setProductsError(null);
+        const data = await fetchProducts();
+        setProducts(data);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        setProductsError(error as Error);
+        toast.error("Failed to load products");
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+    loadProducts();
+  }, []);
 
   const handleProductToggle = (productId: number) => {
     setSelectedProducts((prev) =>
@@ -35,25 +52,50 @@ export default function ConflictAnalyzer() {
       return;
     }
 
-    setLoading(true);
+    setAnalyzing(true);
     try {
-      const response = await analyzeConflictMutation.mutateAsync({
-        productIds: selectedProducts,
+      // Get selected product details with ingredients
+      const selectedProductDetails = products.filter((p) =>
+        selectedProducts.includes(Number(p.id))
+      );
+
+      // Prepare products for LLM analysis
+      const productsForAnalysis = selectedProductDetails.map((p) => ({
+        id: Number(p.id),
+        name: p.name,
+        ingredients: p.ingredients || "Not specified",
+      }));
+
+      // Call recomsystem API for LLM-based conflict analysis
+      const response = await fetch(`${RECOM_API_URL}/api/ingredient-conflict`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          products: productsForAnalysis,
+        }),
       });
-      setResult(response);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Conflict analysis failed: ${response.status} - ${errorText}`);
+      }
+
+      const analysisResult = await response.json();
+      setResult(analysisResult);
       toast.success("Analysis completed!");
-      conflictsQuery.refetch();
     } catch (error) {
       toast.error("Failed to analyze ingredients");
       console.error(error);
     } finally {
-      setLoading(false);
+      setAnalyzing(false);
     }
   };
 
-  const selectedProductDetails = productsQuery.data?.filter((p) =>
-    selectedProducts.includes(p.id)
-  ) || [];
+  const selectedProductDetails = products.filter((p) =>
+    selectedProducts.includes(Number(p.id))
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
@@ -82,21 +124,31 @@ export default function ConflictAnalyzer() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {productsQuery.isLoading ? (
+                {productsLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                   </div>
-                ) : productsQuery.data && productsQuery.data.length > 0 ? (
+                ) : productsError ? (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800 font-medium">Error loading products</p>
+                    <p className="text-xs text-red-600 mt-1">
+                      {productsError.message || "Failed to fetch products"}
+                    </p>
+                    <p className="text-xs text-red-500 mt-2">
+                      Check console for details
+                    </p>
+                  </div>
+                ) : products && products.length > 0 ? (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {productsQuery.data.map((product) => (
+                    {products.map((product) => (
                       <div
                         key={product.id}
                         className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                       >
                         <Checkbox
                           id={`product-${product.id}`}
-                          checked={selectedProducts.includes(product.id)}
-                          onCheckedChange={() => handleProductToggle(product.id)}
+                          checked={selectedProducts.includes(Number(product.id))}
+                          onCheckedChange={() => handleProductToggle(Number(product.id))}
                           className="mt-1"
                         />
                         <div className="flex-1">
@@ -152,10 +204,10 @@ export default function ConflictAnalyzer() {
                 {/* Analyze Button */}
                 <Button
                   onClick={handleAnalyze}
-                  disabled={loading || selectedProducts.length < 2}
+                  disabled={analyzing || selectedProducts.length < 2}
                   className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 mt-6"
                 >
-                  {loading ? (
+                  {analyzing ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Analyzing Ingredients...
@@ -191,7 +243,7 @@ export default function ConflictAnalyzer() {
                   {result.safetyWarning && (
                     <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <p className="text-sm font-medium text-yellow-800">
-                        Safety Warning
+                        ⚠️ Safety Warning
                       </p>
                       <p className="text-sm text-yellow-700 mt-1">
                         {result.safetyWarning}
@@ -200,63 +252,44 @@ export default function ConflictAnalyzer() {
                   )}
 
                   <div>
-                    <p className="text-sm font-medium mb-2">Detailed Analysis</p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {result.conflictDetails}
-                    </p>
+                    <p className="text-sm font-medium mb-2">Analysis Summary</p>
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        {result.conflictDetails}
+                      </p>
+                    </div>
                   </div>
 
                   {result.alternatives && result.alternatives.length > 0 && (
                     <div>
                       <p className="text-sm font-medium mb-2">
-                        Alternative Suggestions
+                        💡 Recommendations
                       </p>
-                      <ul className="text-sm text-gray-700 space-y-1">
+                      <div className="space-y-2">
                         {result.alternatives.map((alt: string, idx: number) => (
-                          <li key={idx} className="flex items-start gap-2">
-                            <span className="text-pink-500 mt-1">•</span>
-                            <span>{alt}</span>
-                          </li>
+                          <div
+                            key={idx}
+                            className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-100 rounded-lg"
+                          >
+                            <span className="text-blue-500 mt-0.5">✓</span>
+                            <span className="text-sm text-gray-700 flex-1">{alt}</span>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {!result.conflictDetected && !result.safetyWarning && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <p className="text-sm text-green-800 font-medium">
+                        ✅ Products are safe to use together
+                      </p>
                     </div>
                   )}
                 </CardContent>
               </Card>
             )}
 
-            {/* Previous Analyses */}
-            {conflictsQuery.data && conflictsQuery.data.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Analysis History</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {conflictsQuery.data.slice(0, 5).map((conflict: any) => (
-                    <div
-                      key={conflict.id}
-                      className="p-3 bg-gray-50 rounded-lg border border-gray-200"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        {conflict.conflictDetected ? (
-                          <AlertTriangle className="w-4 h-4 text-red-500" />
-                        ) : (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                        )}
-                        <p className="text-sm font-medium">
-                          {new Date(conflict.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <p className="text-xs text-gray-600">
-                        {conflict.conflictDetected
-                          ? "Conflicts detected"
-                          : "No conflicts"}
-                      </p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       </div>

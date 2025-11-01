@@ -2,6 +2,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
+import ProductsPage from "@/pages/ProductsPage";
+import CartPage from "@/pages/CartPage";
+import Payment from "@/components/Payment";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -23,6 +26,9 @@ function Router() {
       <Route path="/recommendations" component={Recommendations} />
       <Route path="/routine-tracker" component={RoutineTracker} />
       <Route path="/profile" component={Profile} />
+      <Route path="/products" component={ProductsPage} />
+      <Route path="/cart" component={CartPage} />
+      <Route path="/checkout" component={Payment} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
@@ -40,7 +46,7 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider
         defaultTheme="light"
-        // switchable
+      // switchable
       >
         <TooltipProvider>
           <Toaster />

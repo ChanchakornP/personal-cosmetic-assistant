@@ -1,12 +1,16 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Upload, Sparkles, Beaker, TrendingUp } from "lucide-react";
+import { Loader2, Upload, Sparkles, Beaker, TrendingUp, ShoppingCart, ShoppingBag } from "lucide-react";
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
 import { Link } from "wouter";
+import NavBar from "@/components/NavBar";
+import { useCart } from "@/contexts/CartContext";
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
+  const { items: cartItems } = useCart();
+  const cartItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   if (loading) {
     return (
@@ -20,17 +24,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
         {/* Navigation */}
-        <nav className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {APP_LOGO && <img src={APP_LOGO} alt="logo" className="h-8" />}
-              <span className="text-xl font-bold text-gray-900">{APP_TITLE}</span>
-            </div>
-            <Button onClick={() => (window.location.href = getLoginUrl())}>
-              Sign In
-            </Button>
-          </div>
-        </nav>
+        <NavBar />
 
         {/* Hero Section */}
         <section className="container mx-auto px-4 py-20">
@@ -39,12 +33,12 @@ export default function Home() {
               Your Personal Cosmetic Assistant
             </h1>
             <p className="text-xl text-gray-600 mb-8">
-              Discover personalized skincare recommendations powered by advanced AI. 
-              Get expert analysis of your skin, detect ingredient conflicts, and build 
+              Discover personalized skincare recommendations powered by advanced AI.
+              Get expert analysis of your skin, detect ingredient conflicts, and build
               the perfect skincare routine tailored just for you.
             </p>
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               onClick={() => (window.location.href = getLoginUrl())}
               className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
             >
@@ -144,7 +138,7 @@ export default function Home() {
         {/* CTA Section */}
         <section className="container mx-auto px-4 py-20 text-center">
           <h2 className="text-3xl font-bold mb-6">Ready to Transform Your Skincare?</h2>
-          <Button 
+          <Button
             size="lg"
             onClick={() => (window.location.href = getLoginUrl())}
             className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
@@ -160,20 +154,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
       {/* Navigation */}
-      <nav className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {APP_LOGO && <img src={APP_LOGO} alt="logo" className="h-8" />}
-            <span className="text-xl font-bold text-gray-900">{APP_TITLE}</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">Welcome, {user?.name || 'User'}</span>
-            <Link href="/profile">
-              <Button variant="outline" size="sm">Profile</Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <NavBar />
 
       {/* Dashboard Content */}
       <div className="container mx-auto px-4 py-12">
@@ -231,6 +212,20 @@ export default function Home() {
               <CardContent>
                 <p className="text-gray-600">
                   Track your daily skincare routine and progress
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/products">
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <ShoppingBag className="w-8 h-8 text-orange-500 mb-2" />
+                <CardTitle>Products</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Browse and shop our complete skincare product catalog
                 </p>
               </CardContent>
             </Card>

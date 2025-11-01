@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Sparkles, ArrowLeft, Heart } from "lucide-react";
 import { Link } from "wouter";
-import { trpc } from "@/lib/trpc";
+import { getRecommendations } from "@/services/recom";
 import { toast } from "sonner";
 
 export default function Recommendations() {
@@ -17,12 +17,7 @@ export default function Recommendations() {
   const [recommendations, setRecommendations] = useState<any>(null);
   const [savedProducts, setSavedProducts] = useState<number[]>([]);
 
-  const generateRecommendationsMutation =
-    trpc.recommendation.generate.useMutation();
-  const recommendationsQuery = trpc.recommendation.getUserRecommendations.useQuery(
-    undefined,
-    { enabled: isAuthenticated }
-  );
+  // Legacy TRPC calls removed; using direct recomsystem API
 
   const toggleConcern = (concern: string) => {
     setConcerns((prev) =>
@@ -40,15 +35,25 @@ export default function Recommendations() {
 
     setLoading(true);
     try {
-      const response = await generateRecommendationsMutation.mutateAsync({
-        skinType,
-        concerns,
-        budget,
-        allergies: [],
+      const budgetRange = (() => {
+        if (budget === "budget") return { min: 0, max: 20 };
+        if (budget === "mid") return { min: 20, max: 50 };
+        if (budget === "premium") return { min: 50, max: 100 };
+        if (budget === "luxury") return { min: 100 };
+        return undefined;
+      })();
+
+      const response = await getRecommendations({
+        skinProfile: {
+          skinType,
+          concerns,
+          budgetRange,
+        },
+        limit: 10,
+        strategy: "hybrid",
       });
       setRecommendations(response);
       toast.success("Recommendations generated!");
-      recommendationsQuery.refetch();
     } catch (error) {
       toast.error("Failed to generate recommendations");
       console.error(error);
@@ -126,11 +131,10 @@ export default function Recommendations() {
                       <button
                         key={concern}
                         onClick={() => toggleConcern(concern)}
-                        className={`p-3 rounded-lg border-2 transition-colors text-left ${
-                          concerns.includes(concern)
+                        className={`p-3 rounded-lg border-2 transition-colors text-left ${concerns.includes(concern)
                             ? "border-pink-500 bg-pink-50"
                             : "border-gray-200 hover:border-pink-300"
-                        }`}
+                          }`}
                       >
                         <p className="text-sm font-medium">{concern}</p>
                       </button>
@@ -199,18 +203,16 @@ export default function Recommendations() {
                         </p>
                         <button
                           onClick={() => toggleSaveProduct(product.id)}
-                          className={`w-full p-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                            savedProducts.includes(product.id)
+                          className={`w-full p-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${savedProducts.includes(product.id)
                               ? "bg-pink-100 text-pink-600"
                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
+                            }`}
                         >
                           <Heart
-                            className={`w-4 h-4 ${
-                              savedProducts.includes(product.id)
+                            className={`w-4 h-4 ${savedProducts.includes(product.id)
                                 ? "fill-current"
                                 : ""
-                            }`}
+                              }`}
                           />
                           {savedProducts.includes(product.id)
                             ? "Saved"

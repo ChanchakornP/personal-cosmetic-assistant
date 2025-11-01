@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16
@@ -39,6 +37,8 @@ services:
       context: ./product
       dockerfile: Dockerfile
     container_name: pca-product
+    env_file:
+      - ./product/.env
     ports:
       - "8000:8000"
 
@@ -47,16 +47,24 @@ services:
       context: ./recomsystem
       dockerfile: Dockerfile
     container_name: pca-recomsystem
-    environment:
-      PRODUCT_API_URL: http://product:8000
-    # Optional LLM config; uncomment and set if needed
-    # OPENAI_API_KEY: your_key
-    # LLM_MODEL: gpt-4o-mini
-    # OPENAI_BASE_URL: https://api.openai.com/v1
-    depends_on:
-      - product
+    env_file:
+      - ./recomsystem/.env
     ports:
       - "8001:8001"
+
+  webpage:
+    build:
+      context: ./webpage
+      dockerfile: Dockerfile
+    container_name: pca-webpage
+    ports:
+      - "3000:80"
+    depends_on:
+      - product
+      - recomsystem
+      - payment
+    environment:
+      - VITE_RECOM_API_URL=http://recomsystem:8001
 
 volumes:
   pg-data:

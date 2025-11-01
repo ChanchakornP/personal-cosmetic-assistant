@@ -1,153 +1,281 @@
-import { APP_LOGO, APP_TITLE, USE_MOCK_AUTH } from "@/const";
-import { Loader2 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
-import { useLocation } from "wouter";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { APP_LOGO, APP_TITLE } from "@/const";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import DashboardLayout from "@/components/DashboardLayout";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { trpc } from "@/lib/trpc";
-import { TRPCClientError } from "@trpc/client";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import { toast } from "sonner";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 
-const resolveRedirect = () => {
-  if (typeof window === "undefined") return "/";
-  const search = window.location.search;
-  const params = new URLSearchParams(search);
-  const raw = params.get("redirect");
-  if (!raw) return "/";
-  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
-  return raw || "/";
-};
+const loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
+});
 
-const STORAGE_KEY = "pca-user-info";
-const AUTH_EVENT = "pca-auth-change";
+const registerSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string().min(6, "Please confirm your password"),
+  name: z.string().optional(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
 function Login() {
-  const [location] = useLocation();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
-  const [mockSubmitting, setMockSubmitting] = useState(false);
+  const { signIn, signUp, loading, isAuthenticated } = useAuth();
+  const [, setLocation] = useLocation();
+  const [error, setError] = useState<string | null>(null);
 
-  const redirectTarget = useMemo(() => resolveRedirect(), [location]);
+  const loginForm = useForm<LoginFormValues>({
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
 
-  const utils = trpc.useUtils();
-  const loginMutation = trpc.auth.login.useMutation();
+  const registerForm = useForm<RegisterFormValues>({
+    defaultValues: {
+      email: "",
+      password: "",
+      confirmPassword: "",
+      name: "",
+    },
+  });
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setFormError(null);
-
-    if (!email || !password) {
-      setFormError("Please enter both email and password.");
-      return;
-    }
-
+  const onLoginSubmit = async (values: LoginFormValues) => {
     try {
-      if (USE_MOCK_AUTH) {
-        setMockSubmitting(true);
-        const mockUser = {
-          email,
-          name: email.split("@")[0] ?? "User",
-        };
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(mockUser));
-        window.dispatchEvent(
-          new CustomEvent(AUTH_EVENT, { detail: mockUser })
-        );
-        window.location.href = redirectTarget;
-        return;
-      }
-
-      await loginMutation.mutateAsync({ email, password });
-      await utils.auth.me.invalidate();
-      window.location.href = redirectTarget;
-    } catch (error) {
-      if (error instanceof TRPCClientError) {
-        setFormError(error.message || "Login failed. Please try again later.");
-        return;
-      }
-      setFormError("Login failed. Please try again later.");
-    } finally {
-      if (USE_MOCK_AUTH) {
-        setMockSubmitting(false);
+      const validated = loginSchema.parse(values);
+      setError(null);
+      await signIn(validated.email, validated.password);
+      toast.success("Successfully signed in!");
+      setLocation("/");
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        const firstError = err.issues[0];
+        setError(firstError.message);
+        toast.error(firstError.message);
+      } else {
+        const errorMessage = err instanceof Error ? err.message : "Failed to sign in";
+        setError(errorMessage);
+        toast.error(errorMessage);
       }
     }
   };
 
-  const isSubmitting = USE_MOCK_AUTH
-    ? mockSubmitting
-    : loginMutation.isPending;
+  const onRegisterSubmit = async (values: RegisterFormValues) => {
+    try {
+      const validated = registerSchema.parse(values);
+      setError(null);
+      await signUp(validated.email, validated.password, validated.name || undefined);
+      toast.success("Account created successfully! You are now signed in.");
+      setLocation("/");
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        const firstError = err.issues[0];
+        setError(firstError.message);
+        toast.error(firstError.message);
+      } else {
+        const errorMessage = err instanceof Error ? err.message : "Failed to create account";
+        setError(errorMessage);
+        toast.error(errorMessage);
+      }
+    }
+  };
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      setLocation("/");
+    }
+  }, [isAuthenticated, setLocation]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center px-4 py-16">
-      <Card className="w-full max-w-md border-0 shadow-lg">
-        <CardHeader className="items-center text-center">
-          <img
-            src={APP_LOGO}
-            alt={`${APP_TITLE} logo`}
-            className="h-20 w-20 rounded-full border border-muted shadow-sm"
-          />
-          <CardTitle className="mt-6 text-3xl font-semibold">
+    <DashboardLayout>
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 py-16 px-4">
+        <img
+          src={APP_LOGO}
+          alt={`${APP_TITLE} logo`}
+          className="h-20 w-20 rounded-full border border-muted shadow-sm"
+        />
+        <div className="text-center">
+          <h1 className="text-3xl font-semibold tracking-tight">
             Welcome to {APP_TITLE}
-          </CardTitle>
-          <CardDescription className="text-base text-muted-foreground">
-            Please sign in with your email and password.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={event => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
-                required
-              />
-            </div>
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            Sign in or create an account to continue exploring personalized cosmetic insights.
+          </p>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={event => setPassword(event.target.value)}
-                placeholder="Enter your password"
-                autoComplete="current-password"
-                required
-              />
-            </div>
+        <div className="w-full max-w-md">
+          <Tabs defaultValue="login" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">Sign In</TabsTrigger>
+              <TabsTrigger value="register">Sign Up</TabsTrigger>
+            </TabsList>
 
-            {formError ? (
-              <Alert variant="destructive">
-                <AlertDescription>{formError}</AlertDescription>
-              </Alert>
-            ) : null}
+            <TabsContent value="login" className="mt-6">
+              <Form {...loginForm}>
+                <form
+                  onSubmit={loginForm.handleSubmit(onLoginSubmit)}
+                  className="space-y-4"
+                >
+                  <FormField
+                    control={loginForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="you@example.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={loginForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="Enter your password"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {error && (
+                    <div className="text-sm text-destructive">{error}</div>
+                  )}
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    size="lg"
+                    disabled={loading}
+                  >
+                    {loading ? "Signing in..." : "Sign In"}
+                  </Button>
+                </form>
+              </Form>
+            </TabsContent>
 
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Signing in...
-                </span>
-              ) : (
-                "Sign In"
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+            <TabsContent value="register" className="mt-6">
+              <Form {...registerForm}>
+                <form
+                  onSubmit={registerForm.handleSubmit(onRegisterSubmit)}
+                  className="space-y-4"
+                >
+                  <FormField
+                    control={registerForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name (Optional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="text"
+                            placeholder="Your name"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={registerForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="you@example.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={registerForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="At least 6 characters"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={registerForm.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirm Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="Confirm your password"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {error && (
+                    <div className="text-sm text-destructive">{error}</div>
+                  )}
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    size="lg"
+                    disabled={loading}
+                  >
+                    {loading ? "Creating account..." : "Create Account"}
+                  </Button>
+                </form>
+              </Form>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </DashboardLayout>
   );
 }
 

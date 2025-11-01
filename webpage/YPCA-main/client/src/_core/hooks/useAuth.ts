@@ -1,174 +1,342 @@
-import { USE_MOCK_AUTH, getLoginUrl } from "@/const";
-import { trpc } from "@/lib/trpc";
-import { TRPCClientError } from "@trpc/client";
+import { getLoginUrl } from "@/const";
+import { supabase } from "@/lib/supabase";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
-type StoredUser = Record<string, unknown> & {
-  email?: string;
-  name?: string;
-};
-
-const STORAGE_KEY = "pca-user-info";
-const AUTH_EVENT = "pca-auth-change";
-
-const readStoredUser = (): StoredUser | null => {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as StoredUser;
-  } catch (error) {
-    console.warn("[auth] Failed to parse cached user payload", error);
-    return null;
-  }
-};
-
-const writeStoredUser = (user: StoredUser | null) => {
-  if (typeof window === "undefined") return;
-  if (!user) {
-    window.localStorage.removeItem(STORAGE_KEY);
-    return;
-  }
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-};
+import type { User, Session, AuthError } from "@supabase/supabase-js";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
   redirectPath?: string;
 };
 
+type UserProfile = {
+  id: string;
+  email?: string;
+  emailVerified: boolean;
+  name: string;
+  avatar?: string;
+  createdAt?: string;
+};
+
 export function useAuth(options?: UseAuthOptions) {
-  const redirectOnUnauthenticated = options?.redirectOnUnauthenticated ?? false;
-  const redirectPath = options?.redirectPath ?? getLoginUrl();
+  const { redirectOnUnauthenticated = false, redirectPath = "/login" } =
+    options ?? {};
 
-  if (USE_MOCK_AUTH) {
-    const [user, setUser] = useState<StoredUser | null>(() => readStoredUser());
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-    useEffect(() => {
-      writeStoredUser(user);
-    }, [user]);
-
-    useEffect(() => {
-      if (typeof window === "undefined") return;
-      const handleStorage = (event: StorageEvent) => {
-        if (event.key !== STORAGE_KEY) return;
-        setUser(readStoredUser());
-      };
-      const handleCustom = () => setUser(readStoredUser());
-
-      window.addEventListener("storage", handleStorage);
-      window.addEventListener(AUTH_EVENT, handleCustom);
-
-      return () => {
-        window.removeEventListener("storage", handleStorage);
-        window.removeEventListener(AUTH_EVENT, handleCustom);
-      };
-    }, []);
-
-    const logout = useCallback(async () => {
-      setUser(null);
-      writeStoredUser(null);
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent(AUTH_EVENT));
-      }
-    }, []);
-
-    const state = useMemo(
-      () => ({
-        user,
-        loading: false,
-        error: null,
-        isAuthenticated: Boolean(user),
-      }),
-      [user]
-    );
-
-    useEffect(() => {
-      if (!redirectOnUnauthenticated) return;
-      if (state.user) return;
-      if (typeof window === "undefined") return;
-      if (window.location.pathname === "/login") return;
-
-      window.location.href = redirectPath;
-    }, [redirectOnUnauthenticated, redirectPath, state.user]);
-
-    return {
-      ...state,
-      refresh: async () => state,
-      logout,
-    };
-  }
-
-  const utils = trpc.useUtils();
-
-  const meQuery = trpc.auth.me.useQuery(undefined, {
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
-
-  const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      utils.auth.me.setData(undefined, null);
-    },
-  });
-
-  const logout = useCallback(async () => {
+  // Fetch user profile from profiles table
+  const fetchUserProfile = useCallback(async (userId: string, currentUser?: User | null) => {
     try {
-      await logoutMutation.mutateAsync();
-    } catch (error: unknown) {
-      if (
-        error instanceof TRPCClientError &&
-        error.data?.code === "UNAUTHORIZED"
-      ) {
+      const { data, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      if (profileError && profileError.code !== "PGRST116") {
+        // PGRST116 is "not found" - ignore if profile doesn't exist yet
+        console.warn("[useAuth] Profile fetch error:", profileError);
+      }
+
+      if (data && currentUser) {
+        return {
+          id: data.id,
+          email: data.email || currentUser.email,
+          emailVerified: currentUser.email_confirmed_at !== null,
+          name: data.name || currentUser.user_metadata?.name || currentUser.email?.split("@")[0] || "User",
+          avatar: data.avatar_url,
+          createdAt: data.created_at || currentUser.created_at,
+          ...data,
+        };
+      }
+    } catch (err) {
+      console.error("[useAuth] Error fetching profile:", err);
+    }
+    return null;
+  }, []);
+
+  // Initialize auth state
+  useEffect(() => {
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout;
+    let sessionChecked = false;
+
+    // Set a timeout to prevent infinite loading (do NOT sign out on timeout)
+    timeoutId = setTimeout(() => {
+      if (mounted && !sessionChecked) {
+        console.warn("[useAuth] Session check timeout - leaving session as-is");
+        setLoading(false);
+      }
+    }, 15000); // 15 second timeout
+
+    // Get initial session with better error handling
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error }: {
+          data: { session: Session | null };
+          error: AuthError | null;
+        } = await supabase.auth.getSession();
+
+        if (!mounted) return;
+        clearTimeout(timeoutId);
+        sessionChecked = true;
+
+        // Handle auth errors without force sign-out
+        if (error) {
+          console.warn("[useAuth] Session error:", error);
+          setUser(null);
+          setSession(null);
+          setUserProfile(null);
+          setError(error as Error);
+          setLoading(false);
+          return;
+        }
+
+        // Verify session is valid by checking expiration
+        if (session) {
+          const now = Math.floor(Date.now() / 1000);
+          const expiresAt = session.expires_at;
+
+          if (expiresAt && expiresAt < now) {
+            console.warn("[useAuth] Session expired, clearing");
+            await supabase.auth.signOut().catch(() => { });
+            setSession(null);
+            setUser(null);
+            setUserProfile(null);
+            setLoading(false);
+            return;
+          }
+        }
+
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          fetchUserProfile(session.user.id, session.user).then((profile) => {
+            if (!mounted) return;
+            setUserProfile(profile);
+          }).catch((err) => {
+            console.warn("[useAuth] Profile fetch failed:", err);
+          });
+        } else {
+          setUserProfile(null);
+        }
+
+        setLoading(false);
+      } catch (err) {
+        if (!mounted) return;
+        clearTimeout(timeoutId);
+        sessionChecked = true;
+        console.error("[useAuth] Session check failed:", err);
+        // Do not force sign-out on unexpected error to avoid nuking valid sessions on refresh
+        setError(err instanceof Error ? err : new Error(String(err)));
+        setLoading(false);
+      }
+    };
+
+    checkSession();
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event: string, session: Session | null) => {
+      if (!mounted) return;
+
+      // Handle specific auth events
+      if (event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) {
+        setSession(null);
+        setUser(null);
+        setUserProfile(null);
+        setError(null);
+        setLoading(false);
         return;
       }
+
+      // Check if session is expired
+      if (session) {
+        const now = Math.floor(Date.now() / 1000);
+        const expiresAt = session.expires_at;
+
+        if (expiresAt && expiresAt < now) {
+          console.warn("[useAuth] Session expired in state change");
+          setSession(null);
+          setUser(null);
+          setUserProfile(null);
+          setLoading(false);
+          return;
+        }
+      }
+
+      setSession(session);
+      setUser(session?.user ?? null);
+      setError(null);
+
+      if (session?.user) {
+        try {
+          const profile = await fetchUserProfile(session.user.id, session.user);
+          setUserProfile(profile);
+        } catch (err) {
+          console.warn("[useAuth] Profile fetch failed:", err);
+        }
+      } else {
+        setUserProfile(null);
+      }
+
+      setLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
+  }, [fetchUserProfile]);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
+        throw authError;
+      }
+
+      if (data.user) {
+        const profile = await fetchUserProfile(data.user.id, data.user);
+        setUserProfile(profile);
+      }
+
+      return { user: data.user, session: data.session };
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      setError(error);
       throw error;
     } finally {
-      utils.auth.me.setData(undefined, null);
-      await utils.auth.me.invalidate();
+      setLoading(false);
     }
-  }, [logoutMutation, utils]);
+  }, [fetchUserProfile]);
+
+  const signUp = useCallback(async (email: string, password: string, name?: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name || email.split("@")[0],
+          },
+        },
+      });
+
+      if (authError) {
+        throw authError;
+      }
+
+      if (data.user) {
+        // Create profile entry
+        const { error: profileError } = await supabase.from("profiles").insert({
+          id: data.user.id,
+          email,
+          name: name || email.split("@")[0],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        if (profileError) {
+          console.warn("[useAuth] Profile creation error:", profileError);
+          // Don't throw - user is created, profile can be fixed later
+        }
+
+        const profile = await fetchUserProfile(data.user.id, data.user);
+        setUserProfile(profile);
+      }
+
+      return { user: data.user, session: data.session };
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      setError(error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchUserProfile]);
+
+  const logout = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: authError } = await supabase.auth.signOut();
+      if (authError) {
+        throw authError;
+      }
+      setUser(null);
+      setSession(null);
+      setUserProfile(null);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      setError(error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const refresh = useCallback(async () => {
+    if (user?.id) {
+      const profile = await fetchUserProfile(user.id, user);
+      setUserProfile(profile);
+    }
+  }, [user, fetchUserProfile]);
 
   const state = useMemo(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(meQuery.data ?? null)
-      );
+    const displayUser = userProfile || (user ? {
+      id: user.id,
+      email: user.email,
+      emailVerified: user.email_confirmed_at !== null,
+      name: user.user_metadata?.name || user.email?.split("@")[0] || "User",
+      avatar: user.user_metadata?.avatar_url,
+      createdAt: user.created_at,
+    } : null);
+
+    if (displayUser) {
+      localStorage.setItem("pca-user-info", JSON.stringify(displayUser));
+    } else {
+      localStorage.removeItem("pca-user-info");
     }
+
     return {
-      user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
-      error: meQuery.error ?? logoutMutation.error ?? null,
-      isAuthenticated: Boolean(meQuery.data),
+      user: displayUser,
+      loading,
+      error,
+      isAuthenticated: Boolean(user),
     };
-  }, [
-    meQuery.data,
-    meQuery.error,
-    meQuery.isLoading,
-    logoutMutation.error,
-    logoutMutation.isPending,
-  ]);
+  }, [user, userProfile, loading, error]);
 
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
-    if (meQuery.isLoading || logoutMutation.isPending) return;
-    if (state.user) return;
+    if (loading) return;
+    if (user) return;
     if (typeof window === "undefined") return;
     if (window.location.pathname === "/login") return;
 
     window.location.href = redirectPath;
-  }, [
-    redirectOnUnauthenticated,
-    redirectPath,
-    logoutMutation.isPending,
-    meQuery.isLoading,
-    state.user,
-  ]);
+  }, [redirectOnUnauthenticated, redirectPath, loading, user]);
 
   return {
     ...state,
-    refresh: () => meQuery.refetch(),
+    session,
+    refresh,
     logout,
+    signIn,
+    signUp,
   };
 }

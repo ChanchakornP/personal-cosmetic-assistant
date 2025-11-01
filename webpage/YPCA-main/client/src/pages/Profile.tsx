@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ArrowLeft, LogOut } from "lucide-react";
 import { Link } from "wouter";
-import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 export default function Profile() {
   const { user, logout } = useAuth();
@@ -16,8 +16,32 @@ export default function Profile() {
   const [concerns, setConcerns] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const userProfileQuery = trpc.userProfile.get.useQuery();
-  const updateProfileMutation = trpc.userProfile.update.useMutation();
+  // Load existing profile from Supabase
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("skin_type, budget, allergies, skin_concerns")
+          .eq("id", user.id)
+          .single();
+        if (error && error.code !== "PGRST116") {
+          console.warn("[profile] load error", error);
+          return;
+        }
+        if (data) {
+          setSkinType(data.skin_type || "");
+          setBudget(data.budget || "");
+          setAllergies(Array.isArray(data.allergies) ? data.allergies : []);
+          setConcerns(Array.isArray(data.skin_concerns) ? data.skin_concerns : []);
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    };
+    loadProfile();
+  }, [user?.id]);
 
   const toggleAllergy = (allergy: string) => {
     setAllergies((prev) =>
@@ -38,14 +62,21 @@ export default function Profile() {
   const handleSaveProfile = async () => {
     setLoading(true);
     try {
-      await updateProfileMutation.mutateAsync({
-        skinType,
-        budget,
-        allergies,
-        skinConcerns: concerns,
+      if (!user?.id) throw new Error("Not authenticated");
+      const payload = {
+        id: user.id,
+        skin_type: skinType || null,
+        budget: budget || null,
+        allergies: allergies ?? [],
+        skin_concerns: concerns ?? [],
+        updated_at: new Date().toISOString(),
+      } as const;
+      const { error } = await supabase.from("profiles").upsert(payload, {
+        onConflict: "id",
+        ignoreDuplicates: false,
       });
+      if (error) throw error;
       toast.success("Profile updated!");
-      userProfileQuery.refetch();
     } catch (error) {
       toast.error("Failed to update profile");
       console.error(error);
@@ -150,11 +181,10 @@ export default function Profile() {
                     <button
                       key={allergy}
                       onClick={() => toggleAllergy(allergy)}
-                      className={`p-3 rounded-lg border-2 transition-colors text-left ${
-                        allergies.includes(allergy)
+                      className={`p-3 rounded-lg border-2 transition-colors text-left ${allergies.includes(allergy)
                           ? "border-pink-500 bg-pink-50"
                           : "border-gray-200 hover:border-pink-300"
-                      }`}
+                        }`}
                     >
                       <p className="text-sm font-medium">{allergy}</p>
                     </button>
@@ -179,11 +209,10 @@ export default function Profile() {
                     <button
                       key={concern}
                       onClick={() => toggleConcern(concern)}
-                      className={`p-3 rounded-lg border-2 transition-colors text-left ${
-                        concerns.includes(concern)
+                      className={`p-3 rounded-lg border-2 transition-colors text-left ${concerns.includes(concern)
                           ? "border-purple-500 bg-purple-50"
                           : "border-gray-200 hover:border-purple-300"
-                      }`}
+                        }`}
                     >
                       <p className="text-sm font-medium">{concern}</p>
                     </button>
