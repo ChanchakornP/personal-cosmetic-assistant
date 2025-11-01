@@ -1,0 +1,48 @@
+name: Health Check
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env files
+        run: |
+          mkdir -p PCA-agenticAI product
+          cat > PCA-agenticAI/.env << EOF
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          LLM_MODEL=gemini-2.5-flash
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          EOF
+          
+          cat > product/.env << EOF
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          EOF
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          
+      - name: Start services
+        run: docker-compose up -d --build
+        
+      - name: Wait for services
+        run: sleep 45
+        
+      - name: Check health endpoints
+        run: |
+          curl -f http://localhost:8001/api/health && echo "PCA AgenticAI Health Check Passed"
+          curl -f http://localhost:8000/api/health && echo "Product Service Health Check Passed"
+          nc -z localhost 8080 && echo "Payment Service Health Check Passed"
+          curl -f http://localhost:3000/health || curl -f http://localhost:3000 && echo "Webpage Health Check Passed"
+          
+      - name: Cleanup
+        if: always()
+        run: docker-compose down -v
