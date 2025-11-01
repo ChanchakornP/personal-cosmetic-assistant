@@ -35,18 +35,20 @@ export default function NavBar() {
                         )}
                     </div>
                     <Link href="/products">
-                        <Button variant="outline" size="sm">Products</Button>
+                        <Button variant="default" size="sm" className="font-semibold shadow-md hover:shadow-lg transition-shadow">
+                            Products
+                        </Button>
                     </Link>
                 </div>
                 <div className="flex items-center gap-4">
                     {user ? (
                         <>
                             <Link href="/cart">
-                                <Button variant="outline" size="sm" className="relative">
+                                <Button variant="default" size="sm" className="relative font-semibold shadow-md hover:shadow-lg transition-shadow">
                                     <ShoppingCart className="w-4 h-4 mr-2" />
                                     Cart
                                     {cartItemCount > 0 && (
-                                        <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                        <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg">
                                             {cartItemCount}
                                         </span>
                                     )}
@@ -54,22 +56,31 @@ export default function NavBar() {
                             </Link>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm">
+                                    <Button variant="default" size="sm" className="font-semibold shadow-md hover:shadow-lg transition-shadow">
                                         <User className="w-4 h-4 mr-2" />
                                         {user?.name || "Profile"}
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48">
-                                    <DropdownMenuItem onClick={() => setLocation("/")}>
+                                <DropdownMenuContent align="end" className="w-48 glass-card border-white/40">
+                                    <DropdownMenuItem
+                                        onClick={() => setLocation("/")}
+                                        className="cursor-pointer hover:bg-accent/80 focus:bg-accent/80 transition-colors"
+                                    >
                                         <LayoutDashboard className="w-4 h-4 mr-2" />
                                         Home
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => setLocation("/profile")}>
+                                    <DropdownMenuItem
+                                        onClick={() => setLocation("/profile")}
+                                        className="cursor-pointer hover:bg-accent/80 focus:bg-accent/80 transition-colors"
+                                    >
                                         <User className="w-4 h-4 mr-2" />
                                         Profile
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={handleLogout}>
+                                    <DropdownMenuItem
+                                        onClick={handleLogout}
+                                        className="cursor-pointer hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive transition-colors"
+                                    >
                                         <LogOut className="w-4 h-4 mr-2" />
                                         Logout
                                     </DropdownMenuItem>
@@ -77,7 +88,13 @@ export default function NavBar() {
                             </DropdownMenu>
                         </>
                     ) : (
-                        <Button onClick={() => (window.location.href = getLoginUrl())}>Sign In</Button>
+                        <Button
+                            onClick={() => (window.location.href = getLoginUrl())}
+                            variant="default"
+                            className="font-semibold shadow-md hover:shadow-lg transition-shadow"
+                        >
+                            Sign In
+                        </Button>
                     )}
                 </div>
             </div>
