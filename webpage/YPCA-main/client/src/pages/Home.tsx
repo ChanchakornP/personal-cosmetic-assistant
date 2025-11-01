@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Upload, Sparkles, Beaker, TrendingUp, ShoppingCart, ShoppingBag } from "lucide-react";
+import { Loader2, Upload, Sparkles, Beaker, TrendingUp, ShoppingCart, ShoppingBag, ArrowRight } from "lucide-react";
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
 import { Link } from "wouter";
 import { useCart } from "@/contexts/CartContext";
@@ -150,9 +150,64 @@ export default function Home() {
   // Authenticated user dashboard
   return (
     <div className="min-h-screen">
+      {/* Hero Section */}
+      <section className="container mx-auto px-4 pt-12 pb-8">
+        <Card className="glass-card overflow-hidden border-white/40">
+          <CardContent className="p-8 md:p-12">
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+              {/* Left side - Text content */}
+              <div className="flex-1 text-center md:text-left">
+                <div className="flex items-center gap-2 justify-center md:justify-start mb-4">
+                  <Sparkles className="w-6 h-6 text-primary" />
+                </div>
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
+                  Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''}!
+                </h1>
+                <p className="text-lg md:text-xl text-gray-700 mb-8 max-w-2xl mx-auto md:mx-0">
+                  Discover your perfect skincare routine with AI-powered analysis.
+                  Get personalized recommendations tailored to your unique skin profile.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                  <Link href="/facial-analysis">
+                    <Button
+                      size="lg"
+                      className="w-full sm:w-auto text-base px-8 py-6 font-semibold shadow-lg hover:shadow-xl transition-all"
+                    >
+                      <Upload className="w-5 h-5 mr-2" />
+                      Analyze My Skin
+                      <ArrowRight className="w-5 h-5 ml-2" />
+                    </Button>
+                  </Link>
+                  <Link href="/products">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="w-full sm:w-auto text-base px-8 py-6 font-semibold glass-surface hover:shadow-lg transition-all border-white/40"
+                    >
+                      <ShoppingBag className="w-5 h-5 mr-2" />
+                      Browse Products
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Right side - Decorative elements */}
+              <div className="hidden lg:flex items-center justify-center w-48 h-48">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full blur-3xl"></div>
+                  <div className="relative bg-white/30 backdrop-blur-sm rounded-full w-32 h-32 flex items-center justify-center border border-white/40">
+                    <Sparkles className="w-16 h-16 text-primary/60" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
       {/* Dashboard Content */}
-      <div className="container mx-auto px-4 py-12">
-        <h1 className="text-4xl font-bold mb-12">Welcome Home</h1>
+      <div className="container mx-auto px-4 py-8">
+        <h2 className="text-3xl font-bold mb-8 text-center md:text-left">Quick Actions</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <Link href="/facial-analysis">

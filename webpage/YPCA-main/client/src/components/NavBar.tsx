@@ -35,7 +35,7 @@ export default function NavBar() {
                         )}
                     </div>
                     <Link href="/products">
-                        <Button variant="default" size="sm" className="font-semibold shadow-md hover:shadow-lg transition-shadow">
+                        <Button variant="outline" size="sm" className="font-semibold bg-white/40 hover:bg-white/60 backdrop-blur-sm border-white/40 text-gray-700 shadow-sm hover:shadow-md transition-all">
                             Products
                         </Button>
                     </Link>
@@ -44,11 +44,11 @@ export default function NavBar() {
                     {user ? (
                         <>
                             <Link href="/cart">
-                                <Button variant="default" size="sm" className="relative font-semibold shadow-md hover:shadow-lg transition-shadow">
+                                <Button variant="outline" size="sm" className="relative font-semibold bg-white/40 hover:bg-white/60 backdrop-blur-sm border-white/40 text-gray-700 shadow-sm hover:shadow-md transition-all">
                                     <ShoppingCart className="w-4 h-4 mr-2" />
                                     Cart
                                     {cartItemCount > 0 && (
-                                        <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg">
+                                        <span className="absolute -top-2 -right-2 bg-gray-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-lg">
                                             {cartItemCount}
                                         </span>
                                     )}
@@ -56,7 +56,7 @@ export default function NavBar() {
                             </Link>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="default" size="sm" className="font-semibold shadow-md hover:shadow-lg transition-shadow">
+                                    <Button variant="outline" size="sm" className="font-semibold bg-white/40 hover:bg-white/60 backdrop-blur-sm border-white/40 text-gray-700 shadow-sm hover:shadow-md transition-all">
                                         <User className="w-4 h-4 mr-2" />
                                         {user?.name || "Profile"}
                                     </Button>
@@ -90,8 +90,8 @@ export default function NavBar() {
                     ) : (
                         <Button
                             onClick={() => (window.location.href = getLoginUrl())}
-                            variant="default"
-                            className="font-semibold shadow-md hover:shadow-lg transition-shadow"
+                            variant="outline"
+                            className="font-semibold bg-white/40 hover:bg-white/60 backdrop-blur-sm border-white/40 text-gray-700 shadow-sm hover:shadow-md transition-all"
                         >
                             Sign In
                         </Button>
