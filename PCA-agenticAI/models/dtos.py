@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,10 +9,18 @@ class ProductDTO(BaseModel):
 
     id: int
     name: str
+    brand: Optional[str] = None
     description: Optional[str] = None
     price: float
     stock: int
     category: Optional[str] = None
+    rank: Optional[float] = None
+    ingredients: Optional[str] = None
+    combination: Optional[bool] = None
+    dry: Optional[bool] = None
+    normal: Optional[bool] = None
+    oily: Optional[bool] = None
+    sensitive: Optional[bool] = None
     mainImageUrl: Optional[str] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
@@ -83,6 +91,31 @@ class FacialAnalysisResponse(BaseModel):
     detectedConcerns: List[str] = Field(description="Detected skin concerns")
     analysisResult: str = Field(description="Detailed AI analysis of the skin")
     recommendations: RecommendationResponse = Field(description="Recommended products")
+
+
+class FacialAnalysisLLMResponse(BaseModel):
+    """Response from LLM facial image analysis (before combining with recommendations)"""
+
+    skinType: str = Field(
+        description="Detected skin type: oily, dry, combination, sensitive, or normal"
+    )
+    concerns: List[str] = Field(
+        default_factory=list,
+        description="Detected skin concerns (e.g., acne, wrinkles, dark spots, sensitivity, dryness, oiliness, redness)",
+    )
+    analysis: str = Field(description="Detailed AI analysis text of the skin condition")
+
+
+class LLMProductSelectionResponse(BaseModel):
+    """Response from LLM product selection (selected product IDs with reasons)"""
+
+    selectedProductIds: List[int] = Field(
+        description="List of selected product IDs (maximum 5, can be empty if none match)"
+    )
+    reasons: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Explanation for each selected product (product_id as string -> reason)",
+    )
 
 
 class IngredientConflictRequest(BaseModel):

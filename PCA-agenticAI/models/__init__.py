@@ -1,10 +1,12 @@
 """Models and DTOs for PCA AgenticAI system"""
 
 from .dtos import (
+    FacialAnalysisLLMResponse,
     FacialAnalysisRequest,
     FacialAnalysisResponse,
     IngredientConflictRequest,
     IngredientConflictResponse,
+    LLMProductSelectionResponse,
     ProductDTO,
     RecommendationRequest,
     RecommendationResponse,
@@ -18,6 +20,8 @@ __all__ = [
     "RecommendationResponse",
     "FacialAnalysisRequest",
     "FacialAnalysisResponse",
+    "FacialAnalysisLLMResponse",
+    "LLMProductSelectionResponse",
     "IngredientConflictRequest",
     "IngredientConflictResponse",
 ]

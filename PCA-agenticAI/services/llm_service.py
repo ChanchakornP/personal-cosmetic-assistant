@@ -21,6 +21,13 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
+    from models.dtos import FacialAnalysisLLMResponse, LLMProductSelectionResponse
+
+    PYDANTIC_DTOS_AVAILABLE = True
+except ImportError:
+    PYDANTIC_DTOS_AVAILABLE = False
+
+try:
     from dotenv import load_dotenv
 
     # Load .env file from the PCA-agenticAI directory
@@ -128,6 +135,69 @@ def parse_json_safely(text: str) -> Optional[Dict[str, Any]]:
             pass
 
     return None
+
+
+def _validate_llm_response(
+    data: Dict[str, Any],
+    user_skin_type: Optional[str] = None,
+    user_concerns: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """
+    Validate and normalize LLM response using Pydantic model.
+
+    Args:
+        data: Parsed JSON dict from LLM
+        user_skin_type: Fallback skin type if not in data
+        user_concerns: Fallback concerns if not in data
+
+    Returns:
+        Validated dict with skinType, concerns, and analysis fields
+    """
+    if not PYDANTIC_DTOS_AVAILABLE:
+        # Fallback if Pydantic models not available
+        print("DEBUG: Pydantic models not available, using manual validation")
+        return {
+            "skinType": data.get("skinType", user_skin_type or "normal"),
+            "concerns": data.get("concerns", user_concerns or []),
+            "analysis": data.get("analysis", ""),
+        }
+
+    try:
+        # Validate using Pydantic model
+        validated = FacialAnalysisLLMResponse(**data)
+        print("DEBUG: Successfully validated LLM response with Pydantic")
+        return {
+            "skinType": validated.skinType,
+            "concerns": validated.concerns,
+            "analysis": validated.analysis,
+        }
+    except Exception as validation_error:
+        print(f"DEBUG: Pydantic validation failed: {validation_error}")
+        # Fallback: try to extract valid fields from data
+        try:
+            # Ensure skinType is a string
+            skin_type = str(data.get("skinType", user_skin_type or "normal"))
+            # Ensure concerns is a list of strings
+            concerns = data.get("concerns", user_concerns or [])
+            if not isinstance(concerns, list):
+                concerns = [str(c) for c in concerns] if concerns else []
+            # Ensure analysis is a string
+            analysis = str(data.get("analysis", ""))
+
+            print("DEBUG: Using fallback validation after Pydantic failure")
+            return {
+                "skinType": skin_type,
+                "concerns": concerns,
+                "analysis": analysis,
+            }
+        except Exception as fallback_error:
+            print(f"DEBUG: Fallback validation also failed: {fallback_error}")
+            # Ultimate fallback
+            return {
+                "skinType": user_skin_type or "normal",
+                "concerns": user_concerns or [],
+                "analysis": str(data.get("analysis", "Analysis unavailable.")),
+            }
 
 
 class LLMService:
@@ -545,18 +615,24 @@ Example format: {{"1": "This product...", "2": "This product..."}}"""
             analysis_prompt = """Analyze this facial image and provide a detailed skin analysis.
 
 Please identify:
-1. Skin type (oily, dry, combination, sensitive, normal)
-2. Visible skin concerns (acne, wrinkles, dark spots, sensitivity, dryness, oiliness, redness, texture issues, etc.)
-3. Overall skin condition and recommendations
+1. Skin type: Choose ONE from: "oily", "dry", "combination", "sensitive", or "normal"
+2. Visible skin concerns: List all detected concerns (e.g., "acne", "wrinkles", "dark spots", "sensitivity", "dryness", "oiliness", "redness", "texture issues")
+3. Overall skin condition: Provide a detailed analysis paragraph explaining the skin condition and observations
 
-IMPORTANT: You must respond with ONLY valid JSON, no other text. Format:
+CRITICAL: You MUST respond with ONLY valid JSON. Do NOT include markdown code blocks, backticks, or any other text. The exact required format is:
+
 {
   "skinType": "normal",
-  "concerns": ["dark spots"],
-  "analysis": "Your analysis text here"
+  "concerns": ["dark spots", "wrinkles"],
+  "analysis": "Your detailed analysis text here describing the skin condition, texture, tone, and any visible issues."
 }
 
-Do not include markdown code blocks. Return pure JSON only."""
+Field Requirements:
+- "skinType" (string): Must be exactly one of: "oily", "dry", "combination", "sensitive", "normal"
+- "concerns" (array of strings): List of detected concerns, can be empty array [] if none detected
+- "analysis" (string): Detailed text analysis of the skin condition (minimum 50 words)
+
+Return ONLY the JSON object, nothing else."""
 
             # Use direct Google Generative AI SDK (LangChain doesn't handle images well)
             # This is the same approach as the original recomsystem
@@ -569,7 +645,7 @@ Do not include markdown code blocks. Return pure JSON only."""
 
                 config = types.GenerateContentConfig(
                     temperature=0.3,
-                    max_output_tokens=1000,
+                    max_output_tokens=2000,  # Increased to allow longer analysis text
                     response_mime_type="application/json",
                 )
 
@@ -582,8 +658,48 @@ Do not include markdown code blocks. Return pure JSON only."""
                     config=config,
                 )
 
-                if not response.text:
-                    raise ValueError("Empty response from model")
+                # Check for empty response and provide helpful diagnostics
+                if not response.text or not response.text.strip():
+                    # Check response metadata for clues
+                    finish_reason = None
+                    safety_ratings = None
+                    if hasattr(response, "response_metadata"):
+                        metadata = response.response_metadata
+                        finish_reason = metadata.get("finish_reason")
+                        if "safety_ratings" in metadata:
+                            safety_ratings = metadata.get("safety_ratings")
+
+                    # Check candidates for finish reason
+                    if hasattr(response, "candidates") and response.candidates:
+                        candidate = response.candidates[0]
+                        if hasattr(candidate, "finish_reason"):
+                            finish_reason = candidate.finish_reason
+                        if hasattr(candidate, "safety_ratings"):
+                            safety_ratings = candidate.safety_ratings
+
+                    error_msg = "Empty response from model"
+                    if finish_reason:
+                        if finish_reason == "MAX_TOKENS":
+                            error_msg = "Model response exceeded token limit. Try reducing prompt or increasing max_output_tokens."
+                        elif finish_reason == "SAFETY":
+                            error_msg = "Response blocked by safety filters. The image may have triggered content safety policies."
+                        elif finish_reason == "RECITATION":
+                            error_msg = (
+                                "Response blocked due to potential content recitation."
+                            )
+                        else:
+                            error_msg = f"Response finished early: {finish_reason}"
+
+                    if safety_ratings:
+                        print(f"DEBUG: Safety ratings: {safety_ratings}")
+
+                    print(f"DEBUG: Empty response - Finish reason: {finish_reason}")
+                    # Return graceful fallback instead of raising
+                    return {
+                        "skinType": user_skin_type or "normal",
+                        "concerns": user_concerns or [],
+                        "analysis": f"AI analysis temporarily unavailable: {error_msg}. Using provided skin type: {user_skin_type or 'normal'}.",
+                    }
 
                 response_text = response.text
                 print(f"DEBUG: Gemini API response length: {len(response_text)} chars")
@@ -606,14 +722,10 @@ Do not include markdown code blocks. Return pure JSON only."""
                             f"DEBUG: parse_json_safely also failed, will try manual extraction"
                         )
 
-                # If we have valid data, return it
+                # If we have valid data, validate and return it
                 if isinstance(data, dict):
                     print("DEBUG: Successfully parsed JSON from Gemini API")
-                    return {
-                        "skinType": data.get("skinType", user_skin_type or "normal"),
-                        "concerns": data.get("concerns", user_concerns or []),
-                        "analysis": data.get("analysis", ""),
-                    }
+                    return _validate_llm_response(data, user_skin_type, user_concerns)
 
                 # Fallback: Try manual extraction with improved logic
                 print("DEBUG: Attempting manual JSON extraction")
@@ -644,13 +756,9 @@ Do not include markdown code blocks. Return pure JSON only."""
                         print(
                             "DEBUG: Successfully parsed JSON using _find_first_json_obj"
                         )
-                        return {
-                            "skinType": data.get(
-                                "skinType", user_skin_type or "normal"
-                            ),
-                            "concerns": data.get("concerns", user_concerns or []),
-                            "analysis": data.get("analysis", ""),
-                        }
+                        return _validate_llm_response(
+                            data, user_skin_type, user_concerns
+                        )
                     except json.JSONDecodeError as e:
                         print(f"DEBUG: JSON decode error: {e}")
                         print(f"DEBUG: JSON object preview: {json_obj[:300]}")
@@ -660,13 +768,9 @@ Do not include markdown code blocks. Return pure JSON only."""
                     try:
                         data = json.loads(clean_text)
                         print("DEBUG: Successfully parsed cleaned text as JSON")
-                        return {
-                            "skinType": data.get(
-                                "skinType", user_skin_type or "normal"
-                            ),
-                            "concerns": data.get("concerns", user_concerns or []),
-                            "analysis": data.get("analysis", ""),
-                        }
+                        return _validate_llm_response(
+                            data, user_skin_type, user_concerns
+                        )
                     except json.JSONDecodeError as e:
                         print(f"DEBUG: Direct JSON parse failed: {e}")
 
@@ -706,7 +810,9 @@ Do not include markdown code blocks. Return pure JSON only."""
                     return {
                         "skinType": extracted_skin_type or user_skin_type or "normal",
                         "concerns": extracted_concerns or user_concerns or [],
-                        "analysis": clean_text[:1000],  # Limit length
+                        "analysis": clean_text[
+                            :2000
+                        ],  # Limit length but allow longer text
                     }
 
                 return {
@@ -877,6 +983,283 @@ Instructions:
 
         except Exception as e:
             print(f"Error analyzing ingredient conflicts with LLM: {str(e)}")
+            import traceback
+
+            print(f"Traceback: {traceback.format_exc()}")
+            return None
+
+    def select_top_products(
+        self,
+        products: List[Dict[str, Any]],
+        skin_profile_summary: str,
+        max_products: int = 5,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Select top products from all available products using LLM.
+        LLM will analyze all products and return up to max_products that best match the user's profile.
+        Can return fewer or none if none match well.
+
+        Args:
+            products: List of product dictionaries with full details (id, name, description, price, category, etc.)
+            skin_profile_summary: Summary of user's skin profile and preferences
+            max_products: Maximum number of products to select (default: 5)
+
+        Returns:
+            Dictionary with selectedProductIds (list of int) and reasons (dict mapping product_id string to reason),
+            or None if LLM is unavailable or selection fails
+        """
+        if not self.is_available() or not products:
+            return None
+
+        try:
+            # Build products list text with only name and ingredients
+            products_text = "\n\n".join(
+                [
+                    f"Product ID: {p.get('id', 'N/A')}\n"
+                    f"Name: {p.get('name', 'Unknown')}\n"
+                    f"Ingredients: {p.get('ingredients', 'Not specified')}"
+                    for p in products
+                ]
+            )
+
+            user_prompt = f"""You are a skincare ingredient expert. Select the best products based on ingredient effectiveness for the user's skin concerns. Up to {max_products} products; fewer or none if not suitable.
+
+User Profile:
+{skin_profile_summary}
+
+Products:
+{products_text}
+
+Rules:
+- Evaluate INGREDIENTS only.
+- Pick products that match user concerns (acne, wrinkles, spots, sensitivity, dryness, oiliness).
+- Prefer proven actives (e.g., niacinamide, salicylic acid, retinol, HA, peptides, ceramides, vitamin C).
+- Avoid products that don't support the user's needs.
+- If no good matches, return empty list.
+
+Output ONLY valid JSON:
+{{"selectedProductIds":[...],"reasons":{{"id":"1–2 sentence ingredient justification"}}}}
+
+CRITICAL: Return ONLY the JSON object, no markdown, no code blocks, no other text."""
+
+            # Use JSON response format
+            print(
+                f"DEBUG: Selecting top {max_products} products from {len(products)} available products"
+            )
+
+            try:
+                from google import genai
+                from google.genai import types
+
+                client = genai.Client(api_key=self.api_key)
+
+                config = types.GenerateContentConfig(
+                    temperature=0.3,
+                    max_output_tokens=8000,
+                    response_mime_type="application/json",
+                )
+
+                response = client.models.generate_content(
+                    model=self.model,
+                    contents=user_prompt,
+                    config=config,
+                )
+
+                # Check for empty response and provide helpful diagnostics
+                if not response.text or not response.text.strip():
+                    # Check response metadata for clues
+                    finish_reason = None
+                    safety_ratings = None
+                    if hasattr(response, "response_metadata"):
+                        metadata = response.response_metadata
+                        finish_reason = metadata.get("finish_reason")
+                        if "safety_ratings" in metadata:
+                            safety_ratings = metadata.get("safety_ratings")
+
+                    # Check candidates for finish reason
+                    if hasattr(response, "candidates") and response.candidates:
+                        candidate = response.candidates[0]
+                        if hasattr(candidate, "finish_reason"):
+                            finish_reason = candidate.finish_reason
+                        if hasattr(candidate, "safety_ratings"):
+                            safety_ratings = candidate.safety_ratings
+
+                    error_msg = "Empty response from model"
+                    # Handle both string and enum finish reasons
+                    finish_reason_str = str(finish_reason)
+                    if finish_reason:
+                        if (
+                            "MAX_TOKENS" in finish_reason_str
+                            or "MAX_TOKENS" == finish_reason_str
+                        ):
+                            error_msg = "Model response exceeded token limit. Try reducing prompt or increasing max_output_tokens."
+                        elif (
+                            "SAFETY" in finish_reason_str
+                            or "SAFETY" == finish_reason_str
+                        ):
+                            error_msg = "Response blocked by safety filters."
+                        elif (
+                            "RECITATION" in finish_reason_str
+                            or "RECITATION" == finish_reason_str
+                        ):
+                            error_msg = (
+                                "Response blocked due to potential content recitation."
+                            )
+                        else:
+                            error_msg = f"Response finished early: {finish_reason}"
+
+                    if safety_ratings:
+                        print(f"DEBUG: Safety ratings: {safety_ratings}")
+
+                    print(
+                        f"DEBUG: Empty LLM product selection response - Finish reason: {finish_reason}"
+                    )
+                    # Return None to allow fallback to algorithm-based ranking
+                    return None
+
+                response_text = response.text
+                print(
+                    f"DEBUG: LLM product selection response length: {len(response_text)} chars"
+                )
+
+                # Parse JSON
+                data = None
+                try:
+                    data = json.loads(response_text)
+                    print("DEBUG: Successfully parsed JSON directly")
+                except json.JSONDecodeError as json_error:
+                    print(f"DEBUG: Direct JSON parse failed: {json_error}")
+                    data = parse_json_safely(response_text)
+                    if isinstance(data, dict):
+                        print("DEBUG: Successfully parsed JSON using parse_json_safely")
+
+                # Validate using Pydantic
+                if isinstance(data, dict) and PYDANTIC_DTOS_AVAILABLE:
+                    try:
+                        validated = LLMProductSelectionResponse(**data)
+                        print(
+                            "DEBUG: Successfully validated product selection with Pydantic"
+                        )
+
+                        # Ensure selectedProductIds doesn't exceed max_products
+                        selected_ids = validated.selectedProductIds[:max_products]
+
+                        # Filter reasons to only include selected products
+                        filtered_reasons = {
+                            str(pid): validated.reasons.get(
+                                str(pid), "Selected as a good match for your profile"
+                            )
+                            for pid in selected_ids
+                        }
+
+                        return {
+                            "selectedProductIds": selected_ids,
+                            "reasons": filtered_reasons,
+                        }
+                    except Exception as validation_error:
+                        print(f"DEBUG: Pydantic validation failed: {validation_error}")
+                        # Fallback: try to extract valid fields
+                        selected_ids = data.get("selectedProductIds", [])
+                        if not isinstance(selected_ids, list):
+                            selected_ids = []
+                        # Ensure it's a list of integers and limit to max_products
+                        selected_ids = [
+                            int(pid)
+                            for pid in selected_ids[:max_products]
+                            if isinstance(pid, (int, str))
+                        ]
+                        reasons = data.get("reasons", {})
+                        if not isinstance(reasons, dict):
+                            reasons = {}
+                        return {
+                            "selectedProductIds": selected_ids,
+                            "reasons": {
+                                str(pid): reasons.get(
+                                    str(pid), "Selected as a good match"
+                                )
+                                for pid in selected_ids
+                            },
+                        }
+                elif isinstance(data, dict):
+                    # No Pydantic available, use manual validation
+                    selected_ids = data.get("selectedProductIds", [])
+                    if not isinstance(selected_ids, list):
+                        selected_ids = []
+                    selected_ids = [
+                        int(pid)
+                        for pid in selected_ids[:max_products]
+                        if isinstance(pid, (int, str))
+                    ]
+                    reasons = data.get("reasons", {})
+                    if not isinstance(reasons, dict):
+                        reasons = {}
+                    return {
+                        "selectedProductIds": selected_ids,
+                        "reasons": {
+                            str(pid): reasons.get(str(pid), "Selected as a good match")
+                            for pid in selected_ids
+                        },
+                    }
+
+                print("DEBUG: Failed to parse LLM product selection response")
+                return None
+
+            except ImportError:
+                print("DEBUG: google.genai not available, falling back to LangChain")
+                # Fallback to LangChain if google.genai not available
+                response_text = self.generate_text(
+                    prompt=user_prompt,
+                    system_prompt=None,  # Prompt already includes role
+                    temperature=0.3,
+                    max_tokens=4000,
+                    max_retries=2,
+                )
+
+                if not response_text:
+                    return None
+
+                data = parse_json_safely(response_text)
+                if isinstance(data, dict):
+                    selected_ids = data.get("selectedProductIds", [])
+                    if not isinstance(selected_ids, list):
+                        selected_ids = []
+                    selected_ids = [
+                        int(pid)
+                        for pid in selected_ids[:max_products]
+                        if isinstance(pid, (int, str))
+                    ]
+                    reasons = data.get("reasons", {})
+                    if not isinstance(reasons, dict):
+                        reasons = {}
+
+                    if PYDANTIC_DTOS_AVAILABLE:
+                        try:
+                            validated = LLMProductSelectionResponse(
+                                selectedProductIds=selected_ids,
+                                reasons={
+                                    str(pid): reasons.get(str(pid), "Selected")
+                                    for pid in selected_ids
+                                },
+                            )
+                            return {
+                                "selectedProductIds": validated.selectedProductIds,
+                                "reasons": validated.reasons,
+                            }
+                        except:
+                            pass
+
+                    return {
+                        "selectedProductIds": selected_ids,
+                        "reasons": {
+                            str(pid): reasons.get(str(pid), "Selected")
+                            for pid in selected_ids
+                        },
+                    }
+
+                return None
+
+        except Exception as e:
+            print(f"Error selecting products with LLM: {str(e)}")
             import traceback
 
             print(f"Traceback: {traceback.format_exc()}")
