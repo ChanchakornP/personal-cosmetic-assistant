@@ -1,11 +1,11 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Upload, Sparkles, Beaker, TrendingUp, ShoppingCart, ShoppingBag } from "lucide-react";
+import { Loader2, Upload, Sparkles, Beaker, TrendingUp, ShoppingCart, ShoppingBag, ArrowRight } from "lucide-react";
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
 import { Link } from "wouter";
-import NavBar from "@/components/NavBar";
 import { useCart } from "@/contexts/CartContext";
+import FacialAnalysisHistory from "@/components/FacialAnalysisHistory";
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -22,10 +22,7 @@ export default function Home() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-        {/* Navigation */}
-        <NavBar />
-
+      <div className="min-h-screen">
         {/* Hero Section */}
         <section className="container mx-auto px-4 py-20">
           <div className="max-w-3xl mx-auto text-center">
@@ -51,7 +48,7 @@ export default function Home() {
         <section className="container mx-auto px-4 py-20">
           <h2 className="text-3xl font-bold text-center mb-12">Key Features</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <Upload className="w-8 h-8 text-pink-500 mb-2" />
                 <CardTitle>Facial Analysis</CardTitle>
@@ -63,7 +60,7 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <Sparkles className="w-8 h-8 text-purple-500 mb-2" />
                 <CardTitle>Smart Recommendations</CardTitle>
@@ -75,7 +72,7 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <Beaker className="w-8 h-8 text-blue-500 mb-2" />
                 <CardTitle>Conflict Detection</CardTitle>
@@ -87,7 +84,7 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <TrendingUp className="w-8 h-8 text-green-500 mb-2" />
                 <CardTitle>Progress Tracking</CardTitle>
@@ -102,7 +99,7 @@ export default function Home() {
         </section>
 
         {/* How It Works */}
-        <section className="container mx-auto px-4 py-20 bg-white rounded-lg my-20">
+        <section className="container mx-auto px-4 py-20 glass-card rounded-lg my-20">
           <h2 className="text-3xl font-bold text-center mb-12">How It Works</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
@@ -152,17 +149,69 @@ export default function Home() {
 
   // Authenticated user dashboard
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-      {/* Navigation */}
-      <NavBar />
+    <div className="min-h-screen">
+      {/* Hero Section */}
+      <section className="container mx-auto px-4 pt-12 pb-8">
+        <Card className="glass-card overflow-hidden border-white/40">
+          <CardContent className="p-8 md:p-12">
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+              {/* Left side - Text content */}
+              <div className="flex-1 text-center md:text-left">
+                <div className="flex items-center gap-2 justify-center md:justify-start mb-4">
+                  <Sparkles className="w-6 h-6 text-primary" />
+                </div>
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
+                  Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''}!
+                </h1>
+                <p className="text-lg md:text-xl text-gray-700 mb-8 max-w-2xl mx-auto md:mx-0">
+                  Discover your perfect skincare routine with AI-powered analysis.
+                  Get personalized recommendations tailored to your unique skin profile.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                  <Link href="/facial-analysis">
+                    <Button
+                      size="lg"
+                      className="w-full sm:w-auto text-base px-8 py-6 font-semibold shadow-lg hover:shadow-xl transition-all"
+                    >
+                      <Upload className="w-5 h-5 mr-2" />
+                      Analyze My Skin
+                      <ArrowRight className="w-5 h-5 ml-2" />
+                    </Button>
+                  </Link>
+                  <Link href="/products">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="w-full sm:w-auto text-base px-8 py-6 font-semibold glass-surface hover:shadow-lg transition-all border-white/40"
+                    >
+                      <ShoppingBag className="w-5 h-5 mr-2" />
+                      Browse Products
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Right side - Decorative elements */}
+              <div className="hidden lg:flex items-center justify-center w-48 h-48">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full blur-3xl"></div>
+                  <div className="relative bg-white/30 backdrop-blur-sm rounded-full w-32 h-32 flex items-center justify-center border border-white/40">
+                    <Sparkles className="w-16 h-16 text-primary/60" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
       {/* Dashboard Content */}
-      <div className="container mx-auto px-4 py-12">
-        <h1 className="text-4xl font-bold mb-12">Welcome to Your Skincare Dashboard</h1>
+      <div className="container mx-auto px-4 py-8">
+        <h2 className="text-3xl font-bold mb-8 text-center md:text-left">Quick Actions</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <Link href="/facial-analysis">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+            <Card className="glass-card cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02]">
               <CardHeader>
                 <Upload className="w-8 h-8 text-pink-500 mb-2" />
                 <CardTitle>Facial Analysis</CardTitle>
@@ -175,22 +224,8 @@ export default function Home() {
             </Card>
           </Link>
 
-          <Link href="/recommendations">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <Sparkles className="w-8 h-8 text-purple-500 mb-2" />
-                <CardTitle>Recommendations</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Get personalized product recommendations
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
           <Link href="/conflict-analyzer">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+            <Card className="glass-card cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02]">
               <CardHeader>
                 <Beaker className="w-8 h-8 text-blue-500 mb-2" />
                 <CardTitle>Conflict Analyzer</CardTitle>
@@ -204,7 +239,7 @@ export default function Home() {
           </Link>
 
           <Link href="/routine-tracker">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+            <Card className="glass-card cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02]">
               <CardHeader>
                 <TrendingUp className="w-8 h-8 text-green-500 mb-2" />
                 <CardTitle>Routine Tracker</CardTitle>
@@ -218,7 +253,7 @@ export default function Home() {
           </Link>
 
           <Link href="/products">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+            <Card className="glass-card cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02]">
               <CardHeader>
                 <ShoppingBag className="w-8 h-8 text-orange-500 mb-2" />
                 <CardTitle>Products</CardTitle>
@@ -232,29 +267,10 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* Quick Stats */}
-        <Card className="mb-12">
-          <CardHeader>
-            <CardTitle>Your Skincare Journey</CardTitle>
-            <CardDescription>Track your progress and insights</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div>
-                <p className="text-gray-600 mb-2">Analyses Completed</p>
-                <p className="text-3xl font-bold text-pink-600">0</p>
-              </div>
-              <div>
-                <p className="text-gray-600 mb-2">Products Saved</p>
-                <p className="text-3xl font-bold text-purple-600">0</p>
-              </div>
-              <div>
-                <p className="text-gray-600 mb-2">Routines Logged</p>
-                <p className="text-3xl font-bold text-blue-600">0</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Analysis History */}
+        <div className="mt-12">
+          <FacialAnalysisHistory />
+        </div>
       </div>
     </div>
   );

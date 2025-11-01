@@ -2,7 +2,6 @@ import { useCart } from "../contexts/CartContext";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { useLocation } from "wouter";
-import NavBar from "@/components/NavBar";
 
 export default function CartPage() {
     const { items, setQuantity, removeItem, totalCents } = useCart();
@@ -12,10 +11,7 @@ export default function CartPage() {
     const goCheckout = () => navigate("/checkout");
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-            {/* Navigation */}
-            <NavBar />
-
+        <div className="min-h-screen">
             {/* Cart Content */}
             <div className="container mx-auto px-4 py-8">
                 <h1 className="text-2xl font-semibold mb-6">Shopping Cart</h1>
@@ -30,7 +26,7 @@ export default function CartPage() {
                                 return (
                                     <div
                                         key={product.id}
-                                        className="flex items-center gap-4 p-4 border rounded-md"
+                                        className="flex items-center gap-4 p-4 glass-surface rounded-md"
                                     >
                                         <div className="w-20 h-20 rounded bg-muted overflow-hidden flex-shrink-0">
                                             {/* eslint-disable-next-line jsx-a11y/alt-text */}
@@ -51,7 +47,7 @@ export default function CartPage() {
                                                 <div className="text-xs text-muted-foreground">{product.brand}</div>
                                             )}
                                             <div className="text-sm text-muted-foreground">
-                                                ${(product.priceCents / 100).toFixed(2)}
+                                                ${(product.priceCents ? product.priceCents / 100 : (product.price || 0)).toFixed(2)}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -73,7 +69,7 @@ export default function CartPage() {
                             })}
                         </div>
 
-                        <div className="border rounded-md p-4 h-fit space-y-3">
+                        <div className="glass-card rounded-md p-4 h-fit space-y-3">
                             <div className="flex justify-between">
                                 <div>Subtotal</div>
                                 <div>${(totalCents / 100).toFixed(2)}</div>

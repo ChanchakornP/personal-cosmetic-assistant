@@ -2,17 +2,21 @@ import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, ArrowLeft, Heart } from "lucide-react";
-import { Link } from "wouter";
+import { Loader2, Sparkles, Heart, ShoppingCart } from "lucide-react";
 import { getRecommendations } from "@/services/recom";
 import { toast } from "sonner";
+import { useCart } from "@/contexts/CartContext";
+import type { Product } from "@/types/product";
 
 export default function Recommendations() {
   const { isAuthenticated } = useAuth();
+  const { addItem } = useCart();
   const [skinType, setSkinType] = useState("");
   const [concerns, setConcerns] = useState<string[]>([]);
-  const [budget, setBudget] = useState("");
+  const [minPrice, setMinPrice] = useState<string>("");
+  const [maxPrice, setMaxPrice] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [recommendations, setRecommendations] = useState<any>(null);
   const [savedProducts, setSavedProducts] = useState<number[]>([]);
@@ -35,13 +39,46 @@ export default function Recommendations() {
 
     setLoading(true);
     try {
+      // Build budgetRange from user-specified min/max prices
       const budgetRange = (() => {
-        if (budget === "budget") return { min: 0, max: 20 };
-        if (budget === "mid") return { min: 20, max: 50 };
-        if (budget === "premium") return { min: 50, max: 100 };
-        if (budget === "luxury") return { min: 100 };
+        const min = minPrice ? parseFloat(minPrice) : undefined;
+        const max = maxPrice ? parseFloat(maxPrice) : undefined;
+
+        // Validate that parsed values are valid numbers
+        if (minPrice) {
+          if (isNaN(min!) || min! < 0) {
+            toast.error("Please enter a valid minimum price (must be a number >= 0)");
+            setLoading(false);
+            return null;
+          }
+        }
+        if (maxPrice) {
+          if (isNaN(max!) || max! < 0) {
+            toast.error("Please enter a valid maximum price (must be a number >= 0)");
+            setLoading(false);
+            return null;
+          }
+        }
+
+        if (min !== undefined && max !== undefined) {
+          if (min > max) {
+            toast.error("Minimum price cannot be greater than maximum price");
+            setLoading(false);
+            return null;
+          }
+          return { min, max };
+        } else if (min !== undefined) {
+          return { min };
+        } else if (max !== undefined) {
+          return { max };
+        }
         return undefined;
       })();
+
+      if (budgetRange === null) {
+        // Validation error occurred
+        return;
+      }
 
       const response = await getRecommendations({
         skinProfile: {
@@ -70,26 +107,40 @@ export default function Recommendations() {
     );
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-      {/* Navigation */}
-      <nav className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </Link>
-          <h1 className="text-xl font-bold">Product Recommendations</h1>
-        </div>
-      </nav>
+  // Convert recommendation product to Product type for cart
+  const convertToProduct = (product: any): Product => {
+    return {
+      id: product.id,
+      name: product.name,
+      brand: product.brand,
+      category: product.category,
+      priceCents: product.price ? Math.round(product.price * 100) : undefined,
+      price: product.price,
+      imageUrl: product.mainImageUrl || product.imageUrl,
+      description: product.description,
+      stock: product.stock,
+      ingredients: product.ingredients,
+    };
+  };
 
+  const handleAddToCart = (product: any) => {
+    try {
+      const cartProduct = convertToProduct(product);
+      addItem(cartProduct, 1);
+      toast.success(`${product.name} added to cart!`);
+    } catch (error) {
+      toast.error("Failed to add product to cart");
+      console.error(error);
+    }
+  };
+
+  return (
+    <div className="min-h-screen">
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Preference Form */}
           <div className="lg:col-span-2">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <CardTitle>Get Personalized Recommendations</CardTitle>
                 <CardDescription>
@@ -132,8 +183,8 @@ export default function Recommendations() {
                         key={concern}
                         onClick={() => toggleConcern(concern)}
                         className={`p-3 rounded-lg border-2 transition-colors text-left ${concerns.includes(concern)
-                            ? "border-pink-500 bg-pink-50"
-                            : "border-gray-200 hover:border-pink-300"
+                          ? "border-pink-500 bg-pink-50"
+                          : "border-gray-200 hover:border-pink-300"
                           }`}
                       >
                         <p className="text-sm font-medium">{concern}</p>
@@ -142,20 +193,42 @@ export default function Recommendations() {
                   </div>
                 </div>
 
-                {/* Budget */}
+                {/* Price Range */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Budget Range</label>
-                  <Select value={budget} onValueChange={setBudget}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select budget range" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="budget">Budget ($0-$20)</SelectItem>
-                      <SelectItem value="mid">Mid-range ($20-$50)</SelectItem>
-                      <SelectItem value="premium">Premium ($50-$100)</SelectItem>
-                      <SelectItem value="luxury">Luxury ($100+)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <label className="text-sm font-medium">Price Range (Optional)</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label htmlFor="min-price-rec" className="text-xs text-muted-foreground">
+                        Min Price ($)
+                      </label>
+                      <Input
+                        id="min-price-rec"
+                        type="number"
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        value={minPrice}
+                        onChange={(e) => setMinPrice(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="max-price-rec" className="text-xs text-muted-foreground">
+                        Max Price ($)
+                      </label>
+                      <Input
+                        id="max-price-rec"
+                        type="number"
+                        placeholder="100.00"
+                        min="0"
+                        step="0.01"
+                        value={maxPrice}
+                        onChange={(e) => setMaxPrice(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Leave empty to search all prices. You can specify just min, just max, or both.
+                  </p>
                 </div>
 
                 {/* Generate Button */}
@@ -186,7 +259,7 @@ export default function Recommendations() {
               <div className="space-y-4">
                 <h3 className="font-bold text-lg">Recommended Products</h3>
                 {recommendations.products.map((product: any) => (
-                  <Card key={product.id}>
+                  <Card key={product.id} className="glass-card">
                     <CardContent className="pt-6">
                       <div className="space-y-3">
                         <div>
@@ -201,30 +274,42 @@ export default function Recommendations() {
                         <p className="text-sm text-gray-700">
                           {product.description}
                         </p>
-                        <button
-                          onClick={() => toggleSaveProduct(product.id)}
-                          className={`w-full p-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${savedProducts.includes(product.id)
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => toggleSaveProduct(product.id)}
+                            className={`flex-1 p-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${savedProducts.includes(product.id)
                               ? "bg-pink-100 text-pink-600"
                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                            }`}
-                        >
-                          <Heart
-                            className={`w-4 h-4 ${savedProducts.includes(product.id)
+                              }`}
+                          >
+                            <Heart
+                              className={`w-4 h-4 ${savedProducts.includes(product.id)
                                 ? "fill-current"
                                 : ""
-                              }`}
-                          />
-                          {savedProducts.includes(product.id)
-                            ? "Saved"
-                            : "Save"}
-                        </button>
+                                }`}
+                            />
+                            {savedProducts.includes(product.id)
+                              ? "Saved"
+                              : "Save"}
+                          </button>
+                          <Button
+                            onClick={() => handleAddToCart(product)}
+                            disabled={product.stock !== undefined && product.stock <= 0}
+                            className="flex-1"
+                            size="sm"
+                            variant="outline"
+                          >
+                            <ShoppingCart className="w-4 h-4 mr-2" />
+                            Add to Cart
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
 
                 {recommendations.recommendations && (
-                  <Card>
+                  <Card className="glass-card">
                     <CardHeader>
                       <CardTitle className="text-base">Why These?</CardTitle>
                     </CardHeader>
@@ -240,7 +325,7 @@ export default function Recommendations() {
 
             {/* Saved Products */}
             {savedProducts.length > 0 && (
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="text-base">
                     Saved Products ({savedProducts.length})

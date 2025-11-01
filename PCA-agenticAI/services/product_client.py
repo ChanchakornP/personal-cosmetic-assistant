@@ -27,6 +27,8 @@ class ProductClient:
         limit: Optional[int] = None,
         offset: int = 0,
         search_query: Optional[str] = None,
+        min_price: Optional[float] = None,
+        max_price: Optional[float] = None,
     ) -> List[ProductDTO]:
         """
         Fetch products from Product API
@@ -36,6 +38,8 @@ class ProductClient:
             limit: Maximum number of products to return
             offset: Pagination offset
             search_query: Search query for product name
+            min_price: Minimum price filter (inclusive)
+            max_price: Maximum price filter (inclusive)
 
         Returns:
             List of ProductDTO objects
@@ -59,7 +63,20 @@ class ProductClient:
             )
             response.raise_for_status()
             products_data = response.json()
-            return [ProductDTO(**product) for product in products_data]
+            products = [ProductDTO(**product) for product in products_data]
+
+            # Filter by price range if specified (Product API may not support price filtering)
+            if min_price is not None or max_price is not None:
+                filtered_products = []
+                for product in products:
+                    if min_price is not None and product.price < min_price:
+                        continue
+                    if max_price is not None and product.price > max_price:
+                        continue
+                    filtered_products.append(product)
+                return filtered_products
+
+            return products
         except requests.exceptions.RequestException as e:
             raise Exception(f"Failed to fetch products from Product API: {str(e)}")
 

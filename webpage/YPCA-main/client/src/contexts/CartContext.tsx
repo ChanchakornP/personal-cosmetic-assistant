@@ -7,8 +7,8 @@ export type CartState = { items: CartItem[] };
 type CartContextValue = {
     items: CartItem[];
     addItem: (product: Product, quantity?: number) => void;
-    removeItem: (productId: string) => void;
-    setQuantity: (productId: string, quantity: number) => void;
+    removeItem: (productId: string | number) => void;
+    setQuantity: (productId: string | number, quantity: number) => void;
     clear: () => void;
     totalCents: number;
 };
@@ -52,11 +52,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         });
     }, []);
 
-    const removeItem = useCallback((productId: string) => {
+    const removeItem = useCallback((productId: string | number) => {
         setItems((prev) => prev.filter((i) => i.product.id !== productId));
     }, []);
 
-    const setQuantity = useCallback((productId: string, quantity: number) => {
+    const setQuantity = useCallback((productId: string | number, quantity: number) => {
         setItems((prev) => {
             if (quantity <= 0) return prev.filter((i) => i.product.id !== productId);
             return prev.map((i) => (i.product.id === productId ? { ...i, quantity } : i));
@@ -66,7 +66,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const clear = useCallback(() => setItems([]), []);
 
     const totalCents = useMemo(
-        () => items.reduce((sum, i) => sum + i.product.priceCents * i.quantity, 0),
+        () => items.reduce((sum, i) => {
+            const priceInCents = i.product.priceCents ?? (i.product.price ? Math.round(i.product.price * 100) : 0);
+            return sum + priceInCents * i.quantity;
+        }, 0),
         [items]
     );
 

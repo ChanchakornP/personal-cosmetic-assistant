@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Loader2, AlertTriangle, CheckCircle, ArrowLeft } from "lucide-react";
-import { Link } from "wouter";
+import { Loader2, AlertTriangle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { fetchProducts } from "@/services/products";
 import type { Product } from "@/types/product";
@@ -98,25 +97,12 @@ export default function ConflictAnalyzer() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-      {/* Navigation */}
-      <nav className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </Link>
-          <h1 className="text-xl font-bold">Ingredient Conflict Analyzer</h1>
-        </div>
-      </nav>
-
+    <div className="min-h-screen">
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Product Selection */}
           <div className="lg:col-span-2">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <CardTitle>Select Products to Analyze</CardTitle>
                 <CardDescription>
@@ -190,7 +176,7 @@ export default function ConflictAnalyzer() {
                         >
                           <p className="text-sm font-medium">{product.name}</p>
                           <button
-                            onClick={() => handleProductToggle(product.id)}
+                            onClick={() => handleProductToggle(Number(product.id))}
                             className="text-xs text-pink-600 hover:text-pink-700"
                           >
                             Remove
@@ -223,7 +209,7 @@ export default function ConflictAnalyzer() {
           {/* Analysis Results */}
           <div className="space-y-6">
             {result && (
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     {result.conflictDetected ? (

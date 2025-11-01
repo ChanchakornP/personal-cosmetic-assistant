@@ -138,6 +138,7 @@ class RecommendationEngine:
     def _fetch_products(self, skin_profile: SkinProfileDTO) -> List[ProductDTO]:
         """
         Fetch products from Supabase database based on profile preferences.
+        Filters by price range at database level for better performance.
 
         Args:
             skin_profile: User's skin profile
@@ -145,6 +146,13 @@ class RecommendationEngine:
         Returns:
             List of products
         """
+        # Extract price range from budgetRange if available
+        min_price = None
+        max_price = None
+        if skin_profile.budgetRange:
+            min_price = skin_profile.budgetRange.get("min")
+            max_price = skin_profile.budgetRange.get("max")
+
         # If preferred categories specified, fetch from those categories
         if skin_profile.preferredCategories:
             all_products = []
@@ -154,7 +162,10 @@ class RecommendationEngine:
             for category in skin_profile.preferredCategories:
                 try:
                     category_products = self.product_client.get_all_products(
-                        category=category, limit=50
+                        category=category,
+                        limit=50,
+                        min_price=min_price,
+                        max_price=max_price,
                     )
                     # Deduplicate products
                     for product in category_products:
@@ -169,7 +180,9 @@ class RecommendationEngine:
             if all_products:
                 try:
                     additional_products = self.product_client.get_all_products(
-                        limit=100
+                        limit=100,
+                        min_price=min_price,
+                        max_price=max_price,
                     )
                     for product in additional_products:
                         if product.id not in seen_ids:
@@ -181,12 +194,20 @@ class RecommendationEngine:
             return (
                 all_products
                 if all_products
-                else self.product_client.get_all_products(limit=200)
+                else self.product_client.get_all_products(
+                    limit=200,
+                    min_price=min_price,
+                    max_price=max_price,
+                )
             )
         else:
             # No category preference, fetch all products
             try:
-                return self.product_client.get_all_products(limit=200)
+                return self.product_client.get_all_products(
+                    limit=200,
+                    min_price=min_price,
+                    max_price=max_price,
+                )
             except Exception:
                 return []
 

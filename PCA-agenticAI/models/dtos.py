@@ -70,6 +70,9 @@ class FacialAnalysisRequest(BaseModel):
     detectedConcerns: Optional[List[str]] = Field(
         default_factory=list, description="User-reported skin concerns"
     )
+    budgetRange: Optional[dict] = Field(
+        None, description="Budget range with min and max price (optional)"
+    )
     limit: Optional[int] = Field(default=10, ge=1, le=50)
 
 

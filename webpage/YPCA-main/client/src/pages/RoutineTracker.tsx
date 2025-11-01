@@ -3,8 +3,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, TrendingUp, ArrowLeft } from "lucide-react";
-import { Link } from "wouter";
+import { Loader2, TrendingUp } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -76,25 +75,12 @@ export default function RoutineTracker() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-      {/* Navigation */}
-      <nav className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </Link>
-          <h1 className="text-xl font-bold">Skincare Routine Tracker</h1>
-        </div>
-      </nav>
-
+    <div className="min-h-screen">
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Routine Entry Form */}
           <div className="lg:col-span-2">
-            <Card>
+            <Card className="glass-card">
               <CardHeader>
                 <CardTitle>Log Your Skincare Routine</CardTitle>
                 <CardDescription>
@@ -181,11 +167,10 @@ export default function RoutineTracker() {
                       <button
                         key={rating}
                         onClick={() => setSkinRating(rating)}
-                        className={`w-10 h-10 rounded-lg font-semibold transition-colors ${
-                          skinRating === rating
-                            ? "bg-pink-500 text-white"
-                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                        }`}
+                        className={`w-10 h-10 rounded-lg font-semibold transition-colors ${skinRating === rating
+                          ? "bg-pink-500 text-white"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                          }`}
                       >
                         {rating}
                       </button>
@@ -227,7 +212,7 @@ export default function RoutineTracker() {
           <div className="space-y-6">
             {/* Trend Analysis */}
             {trendAnalysisQuery.data && (
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-green-500" />
@@ -255,7 +240,7 @@ export default function RoutineTracker() {
 
             {/* Recent Routines */}
             {routinesQuery.data && routinesQuery.data.length > 0 && (
-              <Card>
+              <Card className="glass-card">
                 <CardHeader>
                   <CardTitle className="text-base">Recent Routines</CardTitle>
                 </CardHeader>

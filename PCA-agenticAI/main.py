@@ -146,6 +146,7 @@ def analyze_facial_image(request: FacialAnalysisRequest = Body(...)):
     - imageUrl: Base64 encoded image or image URL
     - skinType: User-provided skin type (optional)
     - detectedConcerns: User-reported skin concerns (optional)
+    - budgetRange: Budget range with min/max price (optional, e.g., {"min": 0, "max": 50})
     - limit: Number of recommendations to return (1-50, default: 10)
     """
     try:
@@ -169,7 +170,7 @@ def analyze_facial_image(request: FacialAnalysisRequest = Body(...)):
             skinType=analysis_result["skinType"],
             concerns=analysis_result["concerns"],
             preferredCategories=None,
-            budgetRange=None,
+            budgetRange=request.budgetRange,
             excludeProducts=None,
         )
 

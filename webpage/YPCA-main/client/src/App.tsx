@@ -5,7 +5,7 @@ import NotFound from "@/pages/NotFound";
 import ProductsPage from "@/pages/ProductsPage";
 import CartPage from "@/pages/CartPage";
 import Payment from "@/components/Payment";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
@@ -14,6 +14,7 @@ import ConflictAnalyzer from "./pages/ConflictAnalyzer";
 import Recommendations from "./pages/Recommendations";
 import RoutineTracker from "./pages/RoutineTracker";
 import Profile from "./pages/Profile";
+import NavBar from "./components/NavBar";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -41,6 +42,18 @@ function Router() {
 //   to keep consistent foreground/background color across components
 // - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
+function AppContent() {
+  const [location] = useLocation();
+  const showNavBar = location !== "/login";
+
+  return (
+    <>
+      {showNavBar && <NavBar />}
+      <Router />
+    </>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -50,7 +63,7 @@ function App() {
       >
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <AppContent />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

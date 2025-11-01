@@ -2,7 +2,6 @@ import ProductCard from "../components/ProductCard";
 import { fetchProducts } from "../services/products";
 import { useQuery } from "@tanstack/react-query";
 import { Spinner } from "../components/ui/spinner";
-import NavBar from "@/components/NavBar";
 
 export default function ProductsPage() {
     const { data, isLoading, error } = useQuery({
@@ -12,8 +11,7 @@ export default function ProductsPage() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-                <NavBar />
+            <div className="min-h-screen">
                 <div className="w-full flex justify-center py-20">
                     <Spinner className="size-8" />
                 </div>
@@ -23,8 +21,7 @@ export default function ProductsPage() {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-                <NavBar />
+            <div className="min-h-screen">
                 <div className="w-full flex justify-center py-20 text-destructive">
                     Failed to load products
                 </div>
@@ -35,9 +32,7 @@ export default function ProductsPage() {
     const products = data ?? [];
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-            {/* Navigation */}
-            <NavBar />
+        <div className="min-h-screen">
 
             {/* Products Content */}
             <div className="container mx-auto px-4 py-8">

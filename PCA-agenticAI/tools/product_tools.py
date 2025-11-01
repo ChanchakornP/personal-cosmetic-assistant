@@ -150,22 +150,15 @@ def filter_products_by_price_tool(
         JSON string with list of products within the price range
     """
     try:
-        # Fetch products (with category filter if specified)
+        # Fetch products with price filtering at database level
         products = supabase_client.get_all_products(
             category=category,
-            limit=200,  # Fetch more to filter by price
+            limit=limit,
+            min_price=min_price,
+            max_price=max_price,
         )
 
-        # Filter by price range
-        filtered_products = []
-        for p in products:
-            if min_price is not None and p.price < min_price:
-                continue
-            if max_price is not None and p.price > max_price:
-                continue
-            filtered_products.append(p)
-            if len(filtered_products) >= limit:
-                break
+        filtered_products = products  # Already filtered at database level
 
         products_data = [
             {

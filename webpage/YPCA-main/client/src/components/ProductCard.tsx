@@ -6,11 +6,11 @@ import { Card, CardContent, CardFooter, CardHeader } from "./ui/card";
 export default function ProductCard({ product }: { product: Product }) {
     const { addItem } = useCart();
 
-    const price = (product.priceCents / 100).toFixed(2);
+    const price = (product.priceCents ? product.priceCents / 100 : (product.price || 0)).toFixed(2);
     const imageSrc = product.imageUrl || "/logo.svg";
 
     return (
-        <Card>
+        <Card className="glass-card">
             <CardHeader>
                 <div className="w-full aspect-square overflow-hidden rounded-md bg-muted">
                     {/* eslint-disable-next-line jsx-a11y/alt-text */}

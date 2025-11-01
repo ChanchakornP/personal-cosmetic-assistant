@@ -84,6 +84,8 @@ class SupabaseProductClient:
         limit: Optional[int] = None,
         offset: int = 0,
         search_query: Optional[str] = None,
+        min_price: Optional[float] = None,
+        max_price: Optional[float] = None,
     ) -> List[ProductDTO]:
         """
         Fetch products from Supabase database.
@@ -93,6 +95,8 @@ class SupabaseProductClient:
             limit: Maximum number of products to return
             offset: Pagination offset
             search_query: Search query for product name
+            min_price: Minimum price filter (inclusive)
+            max_price: Maximum price filter (inclusive)
 
         Returns:
             List of ProductDTO objects
@@ -108,6 +112,12 @@ class SupabaseProductClient:
                 query = query.ilike("name", f"%{search_query}%")
             if category:
                 query = query.eq("category", category)
+
+            # Apply price range filters (at database level for better performance)
+            if min_price is not None:
+                query = query.gte("price", min_price)
+            if max_price is not None:
+                query = query.lte("price", max_price)
 
             # Apply ordering (default: newest first)
             query = query.order("created_at", desc=True)
