@@ -42,17 +42,6 @@ services:
     ports:
       - "8000:8000"
 
-  # Original recomsystem (keeping for reference, can be removed)
-  # recomsystem:
-  #   build:
-  #     context: ./recomsystem
-  #     dockerfile: Dockerfile
-  #   container_name: pca-recomsystem
-  #   env_file:
-  #     - ./recomsystem/.env
-  #   ports:
-  #     - "8001:8001"
-
   # New LangChain-powered agentic AI system
   pca-agenticai:
     build:
