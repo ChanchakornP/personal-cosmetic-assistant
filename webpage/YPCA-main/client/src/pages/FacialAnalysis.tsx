@@ -358,11 +358,6 @@ export default function FacialAnalysis() {
                                 )}
                                 <div className="flex items-center justify-between mt-2">
                                   <p className="text-sm font-bold text-pink-600">${product.price?.toFixed(2)}</p>
-                                  {product.stock > 0 ? (
-                                    <span className="text-xs text-green-600">In Stock</span>
-                                  ) : (
-                                    <span className="text-xs text-red-600">Out of Stock</span>
-                                  )}
                                 </div>
                                 {result.recommendations.reasons && result.recommendations.reasons[product.id] && (
                                   <div className="mt-2 p-2 bg-pink-50 rounded text-xs text-gray-700">
@@ -371,7 +366,6 @@ export default function FacialAnalysis() {
                                 )}
                                 <Button
                                   onClick={() => handleAddToCart(product)}
-                                  disabled={!product.stock || product.stock <= 0}
                                   className="w-full mt-2"
                                   size="sm"
                                   variant="outline"

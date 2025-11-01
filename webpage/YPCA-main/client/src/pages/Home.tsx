@@ -158,7 +158,7 @@ export default function Home() {
               {/* Left side - Text content */}
               <div className="flex-1 text-center md:text-left">
                 <div className="flex items-center gap-2 justify-center md:justify-start mb-4">
-                  <Sparkles className="w-6 h-6 text-primary" />
+                  <Sparkles className="w-6 h-6 text-yellow-500" />
                 </div>
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
                   Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''}!
@@ -194,9 +194,9 @@ export default function Home() {
               {/* Right side - Decorative elements */}
               <div className="hidden lg:flex items-center justify-center w-48 h-48">
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full blur-3xl"></div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/20 to-yellow-500/5 rounded-full blur-3xl"></div>
                   <div className="relative bg-white/30 backdrop-blur-sm rounded-full w-32 h-32 flex items-center justify-center border border-white/40">
-                    <Sparkles className="w-16 h-16 text-primary/60" />
+                    <Sparkles className="w-16 h-16 text-yellow-500/60" />
                   </div>
                 </div>
               </div>
