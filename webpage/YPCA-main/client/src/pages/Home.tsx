@@ -5,6 +5,7 @@ import { Loader2, Upload, Sparkles, Beaker, TrendingUp, ShoppingCart, ShoppingBa
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
 import { Link } from "wouter";
 import { useCart } from "@/contexts/CartContext";
+import FacialAnalysisHistory from "@/components/FacialAnalysisHistory";
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -151,7 +152,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
       {/* Dashboard Content */}
       <div className="container mx-auto px-4 py-12">
-        <h1 className="text-4xl font-bold mb-12">Welcome to Your Skincare Dashboard</h1>
+        <h1 className="text-4xl font-bold mb-12">Welcome Home</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <Link href="/facial-analysis">
@@ -209,6 +210,11 @@ export default function Home() {
               </CardContent>
             </Card>
           </Link>
+        </div>
+
+        {/* Analysis History */}
+        <div className="mt-12">
+          <FacialAnalysisHistory />
         </div>
       </div>
     </div>

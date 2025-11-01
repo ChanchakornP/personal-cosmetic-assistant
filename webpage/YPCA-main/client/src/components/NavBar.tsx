@@ -62,7 +62,7 @@ export default function NavBar() {
                                 <DropdownMenuContent align="end" className="w-48">
                                     <DropdownMenuItem onClick={() => setLocation("/")}>
                                         <LayoutDashboard className="w-4 h-4 mr-2" />
-                                        Dashboard
+                                        Home
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => setLocation("/profile")}>
                                         <User className="w-4 h-4 mr-2" />

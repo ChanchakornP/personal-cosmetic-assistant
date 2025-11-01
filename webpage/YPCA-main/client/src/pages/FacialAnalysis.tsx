@@ -10,6 +10,7 @@ import { analyzeFacialImage, type FacialAnalysisResponse } from "@/services/reco
 import { toast } from "sonner";
 import { useCart } from "@/contexts/CartContext";
 import type { Product } from "@/types/product";
+import { saveFacialAnalysisHistory, extractHistoryData } from "@/services/history";
 
 export default function FacialAnalysis() {
   const { isAuthenticated } = useAuth();
@@ -92,6 +93,20 @@ export default function FacialAnalysis() {
         limit: 10,
       });
       setResult(response);
+
+      // Save to history
+      try {
+        const historyData = extractHistoryData(response, {
+          skinType: skinType || undefined,
+          concerns: concerns.length > 0 ? concerns : undefined,
+          budgetRange,
+        });
+        await saveFacialAnalysisHistory(historyData);
+      } catch (historyError) {
+        // Don't fail the analysis if history save fails, just log it
+        console.warn("Failed to save analysis history:", historyError);
+      }
+
       toast.success("Analysis completed!");
     } catch (error) {
       toast.error("Failed to analyze image");
