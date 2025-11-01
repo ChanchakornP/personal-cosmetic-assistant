@@ -51,7 +51,7 @@ export default function CartPage() {
                                                 <div className="text-xs text-muted-foreground">{product.brand}</div>
                                             )}
                                             <div className="text-sm text-muted-foreground">
-                                                ${(product.priceCents / 100).toFixed(2)}
+                                                ${(product.priceCents ? product.priceCents / 100 : (product.price || 0)).toFixed(2)}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">

@@ -26,8 +26,8 @@ export function useAuth(options?: UseAuthOptions) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [firstSessionCheckDone, setFirstSessionCheckDone] = useState(false);
 
-  // Fetch user profile from profiles table
   const fetchUserProfile = useCallback(async (userId: string, currentUser?: User | null) => {
     try {
       const { data, error: profileError } = await supabase
@@ -37,7 +37,6 @@ export function useAuth(options?: UseAuthOptions) {
         .single();
 
       if (profileError && profileError.code !== "PGRST116") {
-        // PGRST116 is "not found" - ignore if profile doesn't exist yet
         console.warn("[useAuth] Profile fetch error:", profileError);
       }
 
@@ -52,50 +51,70 @@ export function useAuth(options?: UseAuthOptions) {
           ...data,
         };
       }
+      return null;
     } catch (err) {
       console.error("[useAuth] Error fetching profile:", err);
     }
     return null;
   }, []);
 
-  // Initialize auth state
+  // Initial session load
   useEffect(() => {
     let mounted = true;
     let timeoutId: NodeJS.Timeout;
-    let sessionChecked = false;
 
-    // Set a timeout to prevent infinite loading (do NOT sign out on timeout)
-    timeoutId = setTimeout(() => {
-      if (mounted && !sessionChecked) {
-        console.warn("[useAuth] Session check timeout - leaving session as-is");
+    // Check if Supabase is properly configured
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === "" || supabaseAnonKey === "") {
+      console.error("[useAuth] Missing Supabase credentials - authentication disabled");
+      setLoading(false);
+      setFirstSessionCheckDone(true);
+      setSession(null);
+      setUser(null);
+      setUserProfile(null);
+      return;
+    }
+
+    const finish = () => {
+      if (mounted) {
         setLoading(false);
+        setFirstSessionCheckDone(true);
       }
-    }, 15000); // 15 second timeout
+    };
 
-    // Get initial session with better error handling
-    const checkSession = async () => {
+    timeoutId = setTimeout(() => {
+      if (mounted && !firstSessionCheckDone) {
+        console.warn("[useAuth] Session init taking too long (2s timeout) - continuing");
+        finish();
+      }
+    }, 2000); // Reduced from 5000 to 2000
+
+    const load = async () => {
       try {
-        const { data: { session }, error }: {
-          data: { session: Session | null };
-          error: AuthError | null;
-        } = await supabase.auth.getSession();
+        // Add timeout to getSession call itself (faster)
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Session check timeout")), 1500) // Reduced from 4000 to 1500
+        );
+
+        const result = await Promise.race([sessionPromise, timeoutPromise]);
+        const { data: { session }, error } = result as Awaited<ReturnType<typeof supabase.auth.getSession>>;
 
         if (!mounted) return;
         clearTimeout(timeoutId);
-        sessionChecked = true;
 
-        // Handle auth errors without force sign-out
         if (error) {
-          console.warn("[useAuth] Session error:", error);
-          setUser(null);
-          setSession(null);
-          setUserProfile(null);
+          console.warn("[useAuth] Session fetch error:", error);
           setError(error as Error);
-          setLoading(false);
+          setSession(null);
+          setUser(null);
+          finish();
           return;
         }
 
-        // Verify session is valid by checking expiration
+        // Check if session is expired
         if (session) {
           const now = Math.floor(Date.now() / 1000);
           const expiresAt = session.expires_at;
@@ -106,120 +125,129 @@ export function useAuth(options?: UseAuthOptions) {
             setSession(null);
             setUser(null);
             setUserProfile(null);
+            finish();
+            return;
+          }
+        }
+
+        setSession(session ?? null);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          // Don't wait for profile fetch to finish - do it async
+          fetchUserProfile(session.user.id, session.user).then((profile) => {
+            if (mounted) setUserProfile(profile);
+          }).catch(() => { });
+        }
+
+        finish();
+      } catch (err) {
+        if (!mounted) return;
+        clearTimeout(timeoutId);
+        if (err instanceof Error && err.message === "Session check timeout") {
+          console.warn("[useAuth] Session check timed out after 1.5s");
+          // On timeout, check localStorage for cached session
+          const cachedSession = localStorage.getItem("supabase.auth.token");
+          if (!cachedSession) {
+            setSession(null);
+            setUser(null);
+          }
+        } else {
+          console.error("[useAuth] Session check failed:", err);
+        }
+        setError(err instanceof Error ? err : new Error(String(err)));
+        finish();
+      }
+    };
+
+    load();
+
+    const { data: { subscription } } =
+      supabase.auth.onAuthStateChange(async (event, newSession) => {
+        if (!mounted) return;
+
+        // Mark session check as done when auth state changes
+        if (!firstSessionCheckDone) {
+          setFirstSessionCheckDone(true);
+        }
+
+        // Check if session is expired
+        if (newSession) {
+          const now = Math.floor(Date.now() / 1000);
+          const expiresAt = newSession.expires_at;
+
+          if (expiresAt && expiresAt < now) {
+            console.warn("[useAuth] Session expired in state change, signing out");
+            await supabase.auth.signOut().catch(() => { });
+            setSession(null);
+            setUser(null);
+            setUserProfile(null);
             setLoading(false);
             return;
           }
         }
 
-        setSession(session);
-        setUser(session?.user ?? null);
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+        setLoading(false);
 
-        if (session?.user) {
-          fetchUserProfile(session.user.id, session.user).then((profile) => {
-            if (!mounted) return;
-            setUserProfile(profile);
-          }).catch((err) => {
-            console.warn("[useAuth] Profile fetch failed:", err);
-          });
+        if (newSession?.user) {
+          // Fetch profile async - don't block state update
+          fetchUserProfile(newSession.user.id, newSession.user).then((profile) => {
+            if (mounted) setUserProfile(profile);
+          }).catch(() => { });
         } else {
           setUserProfile(null);
         }
-
-        setLoading(false);
-      } catch (err) {
-        if (!mounted) return;
-        clearTimeout(timeoutId);
-        sessionChecked = true;
-        console.error("[useAuth] Session check failed:", err);
-        // Do not force sign-out on unexpected error to avoid nuking valid sessions on refresh
-        setError(err instanceof Error ? err : new Error(String(err)));
-        setLoading(false);
-      }
-    };
-
-    checkSession();
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event: string, session: Session | null) => {
-      if (!mounted) return;
-
-      // Handle specific auth events
-      if (event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) {
-        setSession(null);
-        setUser(null);
-        setUserProfile(null);
-        setError(null);
-        setLoading(false);
-        return;
-      }
-
-      // Check if session is expired
-      if (session) {
-        const now = Math.floor(Date.now() / 1000);
-        const expiresAt = session.expires_at;
-
-        if (expiresAt && expiresAt < now) {
-          console.warn("[useAuth] Session expired in state change");
-          setSession(null);
-          setUser(null);
-          setUserProfile(null);
-          setLoading(false);
-          return;
-        }
-      }
-
-      setSession(session);
-      setUser(session?.user ?? null);
-      setError(null);
-
-      if (session?.user) {
-        try {
-          const profile = await fetchUserProfile(session.user.id, session.user);
-          setUserProfile(profile);
-        } catch (err) {
-          console.warn("[useAuth] Profile fetch failed:", err);
-        }
-      } else {
-        setUserProfile(null);
-      }
-
-      setLoading(false);
-    });
+      });
 
     return () => {
       mounted = false;
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, [fetchUserProfile]);
+  }, [fetchUserProfile, firstSessionCheckDone]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (authError) {
-        throw authError;
+      if (error) throw error;
+
+      // Update state immediately after successful sign in
+      if (data.user && data.session) {
+        // Check session expiration
+        const now = Math.floor(Date.now() / 1000);
+        const expiresAt = data.session.expires_at;
+
+        if (expiresAt && expiresAt < now) {
+          console.warn("[useAuth] New session is already expired");
+          await supabase.auth.signOut().catch(() => { });
+          throw new Error("Session expired immediately after sign in");
+        }
+
+        setSession(data.session);
+        setUser(data.user);
+        setFirstSessionCheckDone(true);
+        setLoading(false); // Set loading to false immediately
+
+        // Fetch profile async - don't block
+        fetchUserProfile(data.user.id, data.user).then((profile) => {
+          setUserProfile(profile);
+        }).catch(() => { });
       }
 
-      if (data.user) {
-        const profile = await fetchUserProfile(data.user.id, data.user);
-        setUserProfile(profile);
-      }
-
-      return { user: data.user, session: data.session };
+      return data;
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       setError(error);
-      throw error;
-    } finally {
       setLoading(false);
+      throw error;
     }
   }, [fetchUserProfile]);
 
@@ -227,19 +255,13 @@ export function useAuth(options?: UseAuthOptions) {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: authError } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: {
-            name: name || email.split("@")[0],
-          },
-        },
+        options: { data: { name: name || email.split("@")[0] } }
       });
 
-      if (authError) {
-        throw authError;
-      }
+      if (error) throw error;
 
       if (data.user) {
         // Create profile entry
@@ -260,7 +282,7 @@ export function useAuth(options?: UseAuthOptions) {
         setUserProfile(profile);
       }
 
-      return { user: data.user, session: data.session };
+      return data;
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       setError(error);
@@ -272,19 +294,11 @@ export function useAuth(options?: UseAuthOptions) {
 
   const logout = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
-      const { error: authError } = await supabase.auth.signOut();
-      if (authError) {
-        throw authError;
-      }
+      await supabase.auth.signOut();
       setUser(null);
       setSession(null);
       setUserProfile(null);
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      setError(error);
-      throw error;
     } finally {
       setLoading(false);
     }
@@ -298,7 +312,7 @@ export function useAuth(options?: UseAuthOptions) {
   }, [user, fetchUserProfile]);
 
   const state = useMemo(() => {
-    const displayUser = userProfile || (user ? {
+    const display = userProfile || (user ? {
       id: user.id,
       email: user.email,
       emailVerified: user.email_confirmed_at !== null,
@@ -307,36 +321,30 @@ export function useAuth(options?: UseAuthOptions) {
       createdAt: user.created_at,
     } : null);
 
-    if (displayUser) {
-      localStorage.setItem("pca-user-info", JSON.stringify(displayUser));
+    if (display && session) {
+      localStorage.setItem("pca-user-info", JSON.stringify(display));
     } else {
       localStorage.removeItem("pca-user-info");
     }
 
     return {
-      user: displayUser,
+      user: display,
       loading,
       error,
       isAuthenticated: Boolean(user),
     };
-  }, [user, userProfile, loading, error]);
+  }, [user, userProfile, loading, error, session]);
 
+  // redirect only once session is confirmed null
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
     if (loading) return;
-    if (user) return;
-    if (typeof window === "undefined") return;
-    if (window.location.pathname === "/login") return;
+    if (!firstSessionCheckDone) return;
 
-    window.location.href = redirectPath;
-  }, [redirectOnUnauthenticated, redirectPath, loading, user]);
+    if (!user && typeof window !== "undefined" && window.location.pathname !== redirectPath) {
+      window.location.href = redirectPath;
+    }
+  }, [redirectOnUnauthenticated, redirectPath, firstSessionCheckDone, loading, user]);
 
-  return {
-    ...state,
-    session,
-    refresh,
-    logout,
-    signIn,
-    signUp,
-  };
+  return { ...state, session, refresh, logout, signIn, signUp };
 }

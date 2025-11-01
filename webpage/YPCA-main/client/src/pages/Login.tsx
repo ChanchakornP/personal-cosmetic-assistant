@@ -38,9 +38,10 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 function Login() {
-  const { signIn, signUp, loading, isAuthenticated } = useAuth();
+  const { signIn, signUp, loading, isAuthenticated, session } = useAuth();
   const [, setLocation] = useLocation();
   const [error, setError] = useState<string | null>(null);
+  const [justSignedIn, setJustSignedIn] = useState(false);
 
   const loginForm = useForm<LoginFormValues>({
     defaultValues: {
@@ -62,10 +63,27 @@ function Login() {
     try {
       const validated = loginSchema.parse(values);
       setError(null);
-      await signIn(validated.email, validated.password);
+      setJustSignedIn(true);
+
+      const result = await signIn(validated.email, validated.password);
+
+      // Verify sign-in was successful
+      if (!result?.user || !result?.session) {
+        setJustSignedIn(false);
+        throw new Error("Sign in completed but no user session was created");
+      }
+
       toast.success("Successfully signed in!");
-      setLocation("/");
+
+      // We have a valid session from signIn result, so we can redirect
+      // But wait a moment for state to propagate and avoid redirect conflicts
+      setJustSignedIn(false);
+      setTimeout(() => {
+        setLocation("/");
+      }, 300); // Give React time to update state
+
     } catch (err) {
+      setJustSignedIn(false);
       if (err instanceof z.ZodError) {
         const firstError = err.issues[0];
         setError(firstError.message);
@@ -98,12 +116,16 @@ function Login() {
     }
   };
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated (but wait a moment to avoid redirect loops)
+  // Don't redirect if we just signed in (let onLoginSubmit handle it)
   useEffect(() => {
-    if (isAuthenticated) {
-      setLocation("/");
+    if (isAuthenticated && !loading && !justSignedIn) {
+      const timer = setTimeout(() => {
+        setLocation("/");
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [isAuthenticated, setLocation]);
+  }, [isAuthenticated, loading, justSignedIn, setLocation]);
 
   return (
     <DashboardLayout>

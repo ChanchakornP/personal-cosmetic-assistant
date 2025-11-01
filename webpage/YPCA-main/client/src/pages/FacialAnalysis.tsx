@@ -5,13 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Upload, ArrowLeft } from "lucide-react";
+import { Loader2, Upload, ArrowLeft, ShoppingCart } from "lucide-react";
 import { Link } from "wouter";
 import { analyzeFacialImage, type FacialAnalysisResponse } from "@/services/recom";
 import { toast } from "sonner";
+import { useCart } from "@/contexts/CartContext";
+import type { Product } from "@/types/product";
 
 export default function FacialAnalysis() {
   const { isAuthenticated } = useAuth();
+  const { addItem } = useCart();
   const [imageUrl, setImageUrl] = useState("");
   const [skinType, setSkinType] = useState("");
   const [concerns, setConcerns] = useState<string[]>([]);
@@ -61,6 +64,33 @@ export default function FacialAnalysis() {
         ? prev.filter((c) => c !== concern)
         : [...prev, concern]
     );
+  };
+
+  // Convert recommendation product to Product type for cart
+  const convertToProduct = (product: any): Product => {
+    return {
+      id: product.id,
+      name: product.name,
+      brand: product.brand,
+      category: product.category,
+      priceCents: product.price ? Math.round(product.price * 100) : undefined,
+      price: product.price,
+      imageUrl: product.mainImageUrl,
+      description: product.description,
+      stock: product.stock,
+      ingredients: product.ingredients,
+    };
+  };
+
+  const handleAddToCart = (product: any) => {
+    try {
+      const cartProduct = convertToProduct(product);
+      addItem(cartProduct, 1);
+      toast.success(`${product.name} added to cart!`);
+    } catch (error) {
+      toast.error("Failed to add product to cart");
+      console.error(error);
+    }
   };
 
   return (
@@ -256,6 +286,16 @@ export default function FacialAnalysis() {
                                     {result.recommendations.reasons[product.id][0]}
                                   </div>
                                 )}
+                                <Button
+                                  onClick={() => handleAddToCart(product)}
+                                  disabled={!product.stock || product.stock <= 0}
+                                  className="w-full mt-2"
+                                  size="sm"
+                                  variant="outline"
+                                >
+                                  <ShoppingCart className="w-4 h-4 mr-2" />
+                                  Add to Cart
+                                </Button>
                               </div>
                             </div>
                           </div>

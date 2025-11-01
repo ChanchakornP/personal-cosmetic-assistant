@@ -3,13 +3,16 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, ArrowLeft, Heart } from "lucide-react";
+import { Loader2, Sparkles, ArrowLeft, Heart, ShoppingCart } from "lucide-react";
 import { Link } from "wouter";
 import { getRecommendations } from "@/services/recom";
 import { toast } from "sonner";
+import { useCart } from "@/contexts/CartContext";
+import type { Product } from "@/types/product";
 
 export default function Recommendations() {
   const { isAuthenticated } = useAuth();
+  const { addItem } = useCart();
   const [skinType, setSkinType] = useState("");
   const [concerns, setConcerns] = useState<string[]>([]);
   const [budget, setBudget] = useState("");
@@ -68,6 +71,33 @@ export default function Recommendations() {
         ? prev.filter((id) => id !== productId)
         : [...prev, productId]
     );
+  };
+
+  // Convert recommendation product to Product type for cart
+  const convertToProduct = (product: any): Product => {
+    return {
+      id: product.id,
+      name: product.name,
+      brand: product.brand,
+      category: product.category,
+      priceCents: product.price ? Math.round(product.price * 100) : undefined,
+      price: product.price,
+      imageUrl: product.mainImageUrl || product.imageUrl,
+      description: product.description,
+      stock: product.stock,
+      ingredients: product.ingredients,
+    };
+  };
+
+  const handleAddToCart = (product: any) => {
+    try {
+      const cartProduct = convertToProduct(product);
+      addItem(cartProduct, 1);
+      toast.success(`${product.name} added to cart!`);
+    } catch (error) {
+      toast.error("Failed to add product to cart");
+      console.error(error);
+    }
   };
 
   return (
@@ -132,8 +162,8 @@ export default function Recommendations() {
                         key={concern}
                         onClick={() => toggleConcern(concern)}
                         className={`p-3 rounded-lg border-2 transition-colors text-left ${concerns.includes(concern)
-                            ? "border-pink-500 bg-pink-50"
-                            : "border-gray-200 hover:border-pink-300"
+                          ? "border-pink-500 bg-pink-50"
+                          : "border-gray-200 hover:border-pink-300"
                           }`}
                       >
                         <p className="text-sm font-medium">{concern}</p>
@@ -201,23 +231,35 @@ export default function Recommendations() {
                         <p className="text-sm text-gray-700">
                           {product.description}
                         </p>
-                        <button
-                          onClick={() => toggleSaveProduct(product.id)}
-                          className={`w-full p-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${savedProducts.includes(product.id)
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => toggleSaveProduct(product.id)}
+                            className={`flex-1 p-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${savedProducts.includes(product.id)
                               ? "bg-pink-100 text-pink-600"
                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                            }`}
-                        >
-                          <Heart
-                            className={`w-4 h-4 ${savedProducts.includes(product.id)
+                              }`}
+                          >
+                            <Heart
+                              className={`w-4 h-4 ${savedProducts.includes(product.id)
                                 ? "fill-current"
                                 : ""
-                              }`}
-                          />
-                          {savedProducts.includes(product.id)
-                            ? "Saved"
-                            : "Save"}
-                        </button>
+                                }`}
+                            />
+                            {savedProducts.includes(product.id)
+                              ? "Saved"
+                              : "Save"}
+                          </button>
+                          <Button
+                            onClick={() => handleAddToCart(product)}
+                            disabled={product.stock !== undefined && product.stock <= 0}
+                            className="flex-1"
+                            size="sm"
+                            variant="outline"
+                          >
+                            <ShoppingCart className="w-4 h-4 mr-2" />
+                            Add to Cart
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
