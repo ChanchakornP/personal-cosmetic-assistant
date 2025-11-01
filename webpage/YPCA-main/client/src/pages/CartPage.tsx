@@ -2,7 +2,6 @@ import { useCart } from "../contexts/CartContext";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { useLocation } from "wouter";
-import NavBar from "@/components/NavBar";
 
 export default function CartPage() {
     const { items, setQuantity, removeItem, totalCents } = useCart();
@@ -13,9 +12,6 @@ export default function CartPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-            {/* Navigation */}
-            <NavBar />
-
             {/* Cart Content */}
             <div className="container mx-auto px-4 py-8">
                 <h1 className="text-2xl font-semibold mb-6">Shopping Cart</h1>

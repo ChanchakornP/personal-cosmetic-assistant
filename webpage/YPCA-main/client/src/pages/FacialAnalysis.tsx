@@ -5,8 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Upload, ArrowLeft, ShoppingCart } from "lucide-react";
-import { Link } from "wouter";
+import { Loader2, Upload, ShoppingCart } from "lucide-react";
 import { analyzeFacialImage, type FacialAnalysisResponse } from "@/services/recom";
 import { toast } from "sonner";
 import { useCart } from "@/contexts/CartContext";
@@ -95,19 +94,6 @@ export default function FacialAnalysis() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-      {/* Navigation */}
-      <nav className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Button>
-          </Link>
-          <h1 className="text-xl font-bold">Facial Analysis</h1>
-        </div>
-      </nav>
-
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Analysis Form */}

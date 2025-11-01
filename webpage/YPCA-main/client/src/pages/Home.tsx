@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, Upload, Sparkles, Beaker, TrendingUp, ShoppingCart, ShoppingBag } from "lucide-react";
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
 import { Link } from "wouter";
-import NavBar from "@/components/NavBar";
 import { useCart } from "@/contexts/CartContext";
 
 export default function Home() {
@@ -23,9 +22,6 @@ export default function Home() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-        {/* Navigation */}
-        <NavBar />
-
         {/* Hero Section */}
         <section className="container mx-auto px-4 py-20">
           <div className="max-w-3xl mx-auto text-center">
@@ -153,9 +149,6 @@ export default function Home() {
   // Authenticated user dashboard
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-      {/* Navigation */}
-      <NavBar />
-
       {/* Dashboard Content */}
       <div className="container mx-auto px-4 py-12">
         <h1 className="text-4xl font-bold mb-12">Welcome to Your Skincare Dashboard</h1>

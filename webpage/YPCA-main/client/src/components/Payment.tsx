@@ -1,7 +1,6 @@
 import { useCart } from "../contexts/CartContext";
 import { Button } from "./ui/button";
 import { useLocation } from "wouter";
-import NavBar from "@/components/NavBar";
 import { useMutation } from "@tanstack/react-query";
 import { createTransaction } from "../services/payment";
 import { useState, useMemo } from "react";
@@ -41,7 +40,6 @@ export default function Payment() {
     if (items.length === 0) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-                <NavBar />
                 <div className="container mx-auto px-4 py-8">
                     <h1 className="text-2xl font-semibold mb-6">Checkout</h1>
                     <div>Your cart is empty.</div>
@@ -52,7 +50,6 @@ export default function Payment() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-            <NavBar />
             <div className="container mx-auto px-4 py-8">
                 <h1 className="text-2xl font-semibold mb-6">Checkout</h1>
                 <div className="max-w-md border rounded-md p-4 space-y-4">
