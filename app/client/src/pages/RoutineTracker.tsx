@@ -4,21 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, TrendingUp } from "lucide-react";
-import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { fetchProducts } from "@/services/products";
+import { createRoutine, getUserRoutines, getTrendAnalysis } from "@/services/routine";
 
 export default function RoutineTracker() {
   const { isAuthenticated } = useAuth();
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [skinRating, setSkinRating] = useState<number | undefined>(undefined);
-  const [skinConditions, setSkinConditions] = useState<{
-    dryness?: number;
-    irritation?: number;
-    oiliness?: number;
-    redness?: number;
-    texture?: number;
-    acne?: number;
-  }>({});
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<{
@@ -26,25 +20,32 @@ export default function RoutineTracker() {
     evening: number[];
   }>({ morning: [], evening: [] });
 
-  const productsQuery = trpc.product.list.useQuery();
-  const createRoutineMutation = trpc.skincareRoutine.create.useMutation();
-  const routinesQuery = trpc.skincareRoutine.getUserRoutines.useQuery(undefined, {
+  const productsQuery = useQuery({
+    queryKey: ["products"],
+    queryFn: fetchProducts,
+  });
+  const routinesQuery = useQuery({
+    queryKey: ["routines"],
+    queryFn: getUserRoutines,
     enabled: isAuthenticated,
   });
-  const trendAnalysisQuery = trpc.skincareRoutine.getTrendAnalysis.useQuery(
-    undefined,
-    { enabled: isAuthenticated }
-  );
+  const trendAnalysisQuery = useQuery({
+    queryKey: ["trendAnalysis"],
+    queryFn: getTrendAnalysis,
+    enabled: isAuthenticated,
+  });
 
   const handleAddProduct = (
-    productId: number,
+    productId: string | number,
     time: "morning" | "evening"
   ) => {
+    // Convert product ID to number for consistency with routine storage
+    const id = typeof productId === "string" ? parseInt(productId, 10) : productId;
     setSelectedProducts((prev) => ({
       ...prev,
-      [time]: prev[time].includes(productId)
-        ? prev[time].filter((id) => id !== productId)
-        : [...prev[time], productId],
+      [time]: prev[time].includes(id)
+        ? prev[time].filter((prevId) => prevId !== id)
+        : [...prev[time], id],
     }));
   };
 
@@ -56,32 +57,36 @@ export default function RoutineTracker() {
 
     setLoading(true);
     try {
-      const response = await createRoutineMutation.mutateAsync({
+      await createRoutine({
         date,
         morningProducts: selectedProducts.morning,
         eveningProducts: selectedProducts.evening,
         skinConditionRating: skinRating,
-        skinConditions: Object.keys(skinConditions).length > 0 ? skinConditions : undefined,
         notes,
       });
       toast.success("Routine saved!");
       setNotes("");
       setSkinRating(undefined);
-      setSkinConditions({});
       setSelectedProducts({ morning: [], evening: [] });
       routinesQuery.refetch();
       trendAnalysisQuery.refetch();
-    } catch (error) {
-      toast.error("Failed to save routine");
-      console.error(error);
+    } catch (error: any) {
+      const errorMessage = error?.message || "Failed to save routine";
+      toast.error(errorMessage);
+      console.error("[RoutineTracker] Save error:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const getSelectedProductNames = (ids: number[]) => {
+    if (!productsQuery.data) return "";
     return ids
-      .map((id) => productsQuery.data?.find((p) => p.id === id)?.name)
+      .map((id) => {
+        // Find product by converting both IDs to strings for comparison
+        const product = productsQuery.data?.find((p) => String(p.id) === String(id));
+        return product?.name;
+      })
       .filter(Boolean)
       .join(", ");
   };
@@ -115,23 +120,43 @@ export default function RoutineTracker() {
                 <div className="space-y-3">
                   <h3 className="font-semibold">Morning Routine</h3>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {productsQuery.data?.map((product) => (
-                      <label
-                        key={`morning-${product.id}`}
-                        className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedProducts.morning.includes(product.id)}
-                          onChange={() => handleAddProduct(product.id, "morning")}
-                          className="rounded"
-                        />
-                        <div>
-                          <p className="text-sm font-medium">{product.name}</p>
-                          <p className="text-xs text-gray-600">{product.brand}</p>
-                        </div>
-                      </label>
-                    ))}
+                    {productsQuery.isLoading && (
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        <Loader2 className="w-4 h-4 inline-block mr-2 animate-spin" />
+                        Loading products...
+                      </div>
+                    )}
+                    {productsQuery.isError && (
+                      <div className="p-4 text-center text-sm text-red-500">
+                        Error loading products: {productsQuery.error?.message || "Unknown error"}
+                      </div>
+                    )}
+                    {!productsQuery.isLoading && !productsQuery.isError && (!productsQuery.data || productsQuery.data.length === 0) && (
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        No products found. Please add products to your database.
+                      </div>
+                    )}
+                    {productsQuery.data && productsQuery.data.length > 0 && productsQuery.data.map((product) => {
+                      // Convert product ID to number for comparison with selectedProducts
+                      const productIdNum = typeof product.id === "string" ? parseInt(product.id, 10) : product.id;
+                      return (
+                        <label
+                          key={`morning-${product.id}`}
+                          className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedProducts.morning.includes(productIdNum)}
+                            onChange={() => handleAddProduct(product.id, "morning")}
+                            className="rounded"
+                          />
+                          <div>
+                            <p className="text-sm font-medium">{product.name}</p>
+                            <p className="text-xs text-gray-600">{product.brand}</p>
+                          </div>
+                        </label>
+                      );
+                    })}
                   </div>
                   {selectedProducts.morning.length > 0 && (
                     <div className="p-2 bg-blue-50 rounded text-sm text-blue-700">
@@ -144,23 +169,43 @@ export default function RoutineTracker() {
                 <div className="space-y-3">
                   <h3 className="font-semibold">Evening Routine</h3>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {productsQuery.data?.map((product) => (
-                      <label
-                        key={`evening-${product.id}`}
-                        className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedProducts.evening.includes(product.id)}
-                          onChange={() => handleAddProduct(product.id, "evening")}
-                          className="rounded"
-                        />
-                        <div>
-                          <p className="text-sm font-medium">{product.name}</p>
-                          <p className="text-xs text-gray-600">{product.brand}</p>
-                        </div>
-                      </label>
-                    ))}
+                    {productsQuery.isLoading && (
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        <Loader2 className="w-4 h-4 inline-block mr-2 animate-spin" />
+                        Loading products...
+                      </div>
+                    )}
+                    {productsQuery.isError && (
+                      <div className="p-4 text-center text-sm text-red-500">
+                        Error loading products: {productsQuery.error?.message || "Unknown error"}
+                      </div>
+                    )}
+                    {!productsQuery.isLoading && !productsQuery.isError && (!productsQuery.data || productsQuery.data.length === 0) && (
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        No products found. Please add products to your database.
+                      </div>
+                    )}
+                    {productsQuery.data && productsQuery.data.length > 0 && productsQuery.data.map((product) => {
+                      // Convert product ID to number for comparison with selectedProducts
+                      const productIdNum = typeof product.id === "string" ? parseInt(product.id, 10) : product.id;
+                      return (
+                        <label
+                          key={`evening-${product.id}`}
+                          className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedProducts.evening.includes(productIdNum)}
+                            onChange={() => handleAddProduct(product.id, "evening")}
+                            className="rounded"
+                          />
+                          <div>
+                            <p className="text-sm font-medium">{product.name}</p>
+                            <p className="text-xs text-gray-600">{product.brand}</p>
+                          </div>
+                        </label>
+                      );
+                    })}
                   </div>
                   {selectedProducts.evening.length > 0 && (
                     <div className="p-2 bg-purple-50 rounded text-sm text-purple-700">
@@ -169,70 +214,24 @@ export default function RoutineTracker() {
                   )}
                 </div>
 
-                {/* Skin Condition Ratings */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold">Skin Condition Assessment</h3>
-
-                  {/* Overall Rating */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">
-                      Overall Skin Condition: {skinRating ? `${skinRating}/5` : 'Not rated'}
-                    </label>
-                    <div className="flex gap-2">
-                      {[1, 2, 3, 4, 5].map((rating) => (
-                        <button
-                          key={rating}
-                          onClick={() => setSkinRating(rating)}
-                          className={`w-10 h-10 rounded-lg font-semibold transition-colors ${skinRating === rating
-                            ? "bg-pink-500 text-white"
-                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                            }`}
-                        >
-                          {rating}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Detailed Ratings */}
-                  <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-600 font-medium mb-2">Rate specific concerns (1 = None, 5 = Severe)</p>
-
-                    {[
-                      { key: 'dryness', label: 'Dryness', icon: '💧' },
-                      { key: 'irritation', label: 'Irritation', icon: '🔥' },
-                      { key: 'oiliness', label: 'Oiliness', icon: '✨' },
-                      { key: 'redness', label: 'Redness', icon: '🌹' },
-                      { key: 'texture', label: 'Texture Issues', icon: '🔍' },
-                      { key: 'acne', label: 'Acne', icon: '⚠️' },
-                    ].map(({ key, label, icon }) => {
-                      const value = skinConditions[key as keyof typeof skinConditions];
-                      return (
-                        <div key={key} className="space-y-1">
-                          <label className="text-xs font-medium flex items-center gap-2">
-                            {icon} {label}: {value ? `${value}/5` : 'Not rated'}
-                          </label>
-                          <div className="flex gap-1">
-                            {[1, 2, 3, 4, 5].map((rating) => (
-                              <button
-                                key={rating}
-                                type="button"
-                                onClick={() => setSkinConditions(prev => ({
-                                  ...prev,
-                                  [key]: rating,
-                                }))}
-                                className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${value === rating
-                                  ? "bg-purple-500 text-white"
-                                  : "bg-white border border-gray-300 text-gray-700 hover:bg-purple-100"
-                                  }`}
-                              >
-                                {rating}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
+                {/* Skin Condition Rating */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Skin Condition: {skinRating ? `${skinRating}/5` : 'Not rated'}
+                  </label>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((rating) => (
+                      <button
+                        key={rating}
+                        onClick={() => setSkinRating(rating)}
+                        className={`w-10 h-10 rounded-lg font-semibold transition-colors ${skinRating === rating
+                          ? "bg-pink-500 text-white"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                          }`}
+                      >
+                        {rating}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -313,19 +312,8 @@ export default function RoutineTracker() {
                       </p>
                       {routine.skinConditionRating && (
                         <p className="text-xs text-gray-600 mt-1">
-                          Overall: {routine.skinConditionRating}/5
+                          Skin Condition: {routine.skinConditionRating}/5
                         </p>
-                      )}
-                      {routine.skinConditions && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {Object.entries(routine.skinConditions).map(([key, value]: [string, any]) => (
-                            value && (
-                              <span key={key} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
-                                {key}: {value}/5
-                              </span>
-                            )
-                          ))}
-                        </div>
                       )}
                       {routine.notes && (
                         <p className="text-xs text-gray-700 mt-1 line-clamp-2">
