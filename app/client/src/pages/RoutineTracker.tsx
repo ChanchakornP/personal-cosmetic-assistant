@@ -10,7 +10,15 @@ import { toast } from "sonner";
 export default function RoutineTracker() {
   const { isAuthenticated } = useAuth();
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [skinRating, setSkinRating] = useState(3);
+  const [skinRating, setSkinRating] = useState<number | undefined>(undefined);
+  const [skinConditions, setSkinConditions] = useState<{
+    dryness?: number;
+    irritation?: number;
+    oiliness?: number;
+    redness?: number;
+    texture?: number;
+    acne?: number;
+  }>({});
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<{
@@ -53,10 +61,14 @@ export default function RoutineTracker() {
         morningProducts: selectedProducts.morning,
         eveningProducts: selectedProducts.evening,
         skinConditionRating: skinRating,
+        skinConditions: Object.keys(skinConditions).length > 0 ? skinConditions : undefined,
         notes,
       });
       toast.success("Routine saved!");
       setNotes("");
+      setSkinRating(undefined);
+      setSkinConditions({});
+      setSelectedProducts({ morning: [], evening: [] });
       routinesQuery.refetch();
       trendAnalysisQuery.refetch();
     } catch (error) {
@@ -157,24 +169,70 @@ export default function RoutineTracker() {
                   )}
                 </div>
 
-                {/* Skin Condition Rating */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium">
-                    Skin Condition Rating: {skinRating}/5
-                  </label>
-                  <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map((rating) => (
-                      <button
-                        key={rating}
-                        onClick={() => setSkinRating(rating)}
-                        className={`w-10 h-10 rounded-lg font-semibold transition-colors ${skinRating === rating
-                          ? "bg-pink-500 text-white"
-                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                          }`}
-                      >
-                        {rating}
-                      </button>
-                    ))}
+                {/* Skin Condition Ratings */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold">Skin Condition Assessment</h3>
+
+                  {/* Overall Rating */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Overall Skin Condition: {skinRating ? `${skinRating}/5` : 'Not rated'}
+                    </label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((rating) => (
+                        <button
+                          key={rating}
+                          onClick={() => setSkinRating(rating)}
+                          className={`w-10 h-10 rounded-lg font-semibold transition-colors ${skinRating === rating
+                            ? "bg-pink-500 text-white"
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                            }`}
+                        >
+                          {rating}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Detailed Ratings */}
+                  <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-600 font-medium mb-2">Rate specific concerns (1 = None, 5 = Severe)</p>
+
+                    {[
+                      { key: 'dryness', label: 'Dryness', icon: '💧' },
+                      { key: 'irritation', label: 'Irritation', icon: '🔥' },
+                      { key: 'oiliness', label: 'Oiliness', icon: '✨' },
+                      { key: 'redness', label: 'Redness', icon: '🌹' },
+                      { key: 'texture', label: 'Texture Issues', icon: '🔍' },
+                      { key: 'acne', label: 'Acne', icon: '⚠️' },
+                    ].map(({ key, label, icon }) => {
+                      const value = skinConditions[key as keyof typeof skinConditions];
+                      return (
+                        <div key={key} className="space-y-1">
+                          <label className="text-xs font-medium flex items-center gap-2">
+                            {icon} {label}: {value ? `${value}/5` : 'Not rated'}
+                          </label>
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map((rating) => (
+                              <button
+                                key={rating}
+                                type="button"
+                                onClick={() => setSkinConditions(prev => ({
+                                  ...prev,
+                                  [key]: rating,
+                                }))}
+                                className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${value === rating
+                                  ? "bg-purple-500 text-white"
+                                  : "bg-white border border-gray-300 text-gray-700 hover:bg-purple-100"
+                                  }`}
+                              >
+                                {rating}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -253,9 +311,22 @@ export default function RoutineTracker() {
                       <p className="text-sm font-medium">
                         {new Date(routine.date).toLocaleDateString()}
                       </p>
-                      <p className="text-xs text-gray-600 mt-1">
-                        Skin Rating: {routine.skinConditionRating}/5
-                      </p>
+                      {routine.skinConditionRating && (
+                        <p className="text-xs text-gray-600 mt-1">
+                          Overall: {routine.skinConditionRating}/5
+                        </p>
+                      )}
+                      {routine.skinConditions && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {Object.entries(routine.skinConditions).map(([key, value]: [string, any]) => (
+                            value && (
+                              <span key={key} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                                {key}: {value}/5
+                              </span>
+                            )
+                          ))}
+                        </div>
+                      )}
                       {routine.notes && (
                         <p className="text-xs text-gray-700 mt-1 line-clamp-2">
                           {routine.notes}

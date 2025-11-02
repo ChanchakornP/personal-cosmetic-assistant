@@ -2,9 +2,12 @@ import { router, publicProcedure } from "../trpc";
 import { supabaseAdmin } from "../lib/supabase-server";
 
 export const productRouter = router({
-    list: publicProcedure.query(async () => {
+    list: publicProcedure.query(async ({ ctx }) => {
         try {
-            const { data, error } = await supabaseAdmin
+            // Use context's supabase client if available, otherwise use admin client
+            const supabase = ctx?.supabase || supabaseAdmin;
+
+            const { data, error } = await supabase
                 .from("product")
                 .select("id, name, brand, description, price, category, main_image_url, stock, ingredients")
                 .order("name");
