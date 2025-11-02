@@ -1,3 +1,7 @@
-# Web Application / Mobile Application
+# PCA Web Application
+This folder contains the frontend and backend web application files.
 
-Integrated authentication system here. If there is denpendency to integrate to other services, using mock data instead (but same DTO)
+## Structure
+- `client/` - React frontend application
+- `server/` - tRPC backend server
+- `dist/` - Production build output

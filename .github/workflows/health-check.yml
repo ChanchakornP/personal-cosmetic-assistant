@@ -13,7 +13,7 @@ jobs:
 
       - name: Create .env files
         run: |
-          mkdir -p PCA-agenticAI product
+          mkdir -p PCA-agenticAI product app
           cat > PCA-agenticAI/.env << EOF
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           LLM_MODEL=gemini-2.5-flash
@@ -24,6 +24,14 @@ jobs:
           cat > product/.env << EOF
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          EOF
+          
+          cat > app/.env << EOF
+          VITE_APP_TITLE=Personal Cosmetic Assistant
+          VITE_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          VITE_STORE_ACCOUNT_ID=1
+          VITE_RECOM_API_URL=http://localhost:8001
           EOF
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

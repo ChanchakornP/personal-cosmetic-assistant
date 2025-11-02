@@ -55,13 +55,11 @@ services:
 
   webpage:
     build:
-      context: ./webpage
+      context: ./app
       dockerfile: Dockerfile
     container_name: pca-webpage
     ports:
       - "3000:80"
-    environment:
-      - VITE_RECOM_API_URL=http://pca-agenticai:8001
 
 volumes:
   pg-data:
