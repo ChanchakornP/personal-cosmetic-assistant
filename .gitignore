@@ -1,3 +1,5 @@
+# Root-level ignores (common across all projects)
+
 # Environment variables and secrets
 .env
 .env.local
@@ -5,74 +7,12 @@
 *.env
 .envrc
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-pip-log.txt
-pip-delete-this-directory.txt
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.hypothesis/
-.pytype/
-cython_debug/
-
-# Java
-*.class
-*.log
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-hs_err_pid*
-target/
-.mvn/
-mvnw
-mvnw.cmd
-.idea/
-
-# Node.js (if any)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-package-lock.json
-yarn.lock
-
 # IDEs
-.vscode/
 .idea/
 *.swp
 *.swo
 *~
-.DS_Store
-*.iml
-
-# Docker
-.dockerignore
+.vscode/
 
 # OS files
 .DS_Store
@@ -92,22 +32,28 @@ logs/
 *.tmp
 *.temp
 *.bak
-*.swp
-*~
 
-# Test files with exposed keys (if needed)
-test.py
+# Docker
+# Note: .dockerignore should be committed to the repo, not ignored
 
-# Database
+# Database files (SQLite, etc.)
 *.db
 *.sqlite
 *.sqlite3
 
-# Compiled files
-*.com
-*.class
-*.dll
-*.exe
-*.o
-*.so
+# Documentation builds
+docs/_build/
+docs/.doctrees/
 
+# General build artifacts
+build/
+dist/
+
+# Git-specific
+*.orig
+
+# Note: Project-specific ignores are in:
+# - app/.gitignore (Node.js/React/Vite)
+# - payment/.gitignore (Java/Spring Boot)
+# - product/.gitignore (Python/FastAPI)
+# - PCA-agenticAI/.gitignore (Python/LangChain)
