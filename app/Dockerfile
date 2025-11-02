@@ -8,14 +8,14 @@ RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 WORKDIR /app
 
 # Copy package files first (for better layer caching)
-COPY YPCA-main/package.json YPCA-main/pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml* ./
 
 # Install dependencies
 # Use --no-frozen-lockfile to allow lockfile refresh inside container when package.json changed
 RUN pnpm install --no-frozen-lockfile
 
 # Copy the rest of the application source (including .env file)
-COPY YPCA-main/ ./
+COPY . ./
 
 # Build the application
 # Vite will automatically read .env file from the project root
